@@ -7,8 +7,10 @@ from __future__ import annotations
 import math
 
 import time
+import weakref
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
+import shiboken6
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient,
 )
@@ -29,9 +31,101 @@ def _alpha(c: QColor, a: int) -> QColor:
     return c
 
 
+# --- halos --------------------------------------------------------------------
+
+class HaloOverlay(QWidget):
+    """Draws glows *over* the surrounding interface.
+
+    A widget can't paint outside its own rectangle, so a thumb's glow used to
+    be cut off at the slider's edges. Glowing controls instead hand their
+    halo (and the thumb/cap that sits on it) to this transparent, click-
+    through layer stacked above everything in the window.
+    """
+
+    def __init__(self, host: QWidget) -> None:
+        super().__init__(host)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._sources: "weakref.WeakSet[QWidget]" = weakref.WeakSet()
+        self._last: dict[int, QRect] = {}
+        host.installEventFilter(self)
+        self.setGeometry(host.rect())
+        self.raise_()
+        host.window()._halo_overlay = self
+
+    def eventFilter(self, obj, event) -> bool:
+        if event.type() == QEvent.Type.Resize:
+            self.setGeometry(obj.rect())
+        elif event.type() == QEvent.Type.ChildAdded:
+            QTimer.singleShot(0, self.raise_)   # stay on top of later children
+        return False
+
+    def _origin(self, src: QWidget) -> QPoint:
+        """src's top-left in overlay coordinates. The overlay is a sibling, not
+        an ancestor, so map through the window (an ancestor of both)."""
+        win = self.window()
+        return self.mapFrom(win, src.mapTo(win, QPoint(0, 0)))
+
+    def track(self, src: QWidget) -> None:
+        """A source repainted: refresh its halo (and erase where it was)."""
+        self._sources.add(src)
+        r = src.halo_rect().toAlignedRect()
+        rect = QRect(self._origin(src) + r.topLeft(), r.size())
+        old = self._last.get(id(src))
+        self._last[id(src)] = rect
+        self.update(rect.united(old) if old is not None else rect)
+
+    def forget(self, src: QWidget) -> None:
+        old = self._last.pop(id(src), None)
+        if old is not None:
+            self.update(old)
+
+    def paintEvent(self, event) -> None:
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        for src in list(self._sources):
+            if not shiboken6.isValid(src) or not src.isVisible():
+                continue
+            p.save()
+            p.translate(QPointF(self._origin(src)))
+            src.paint_halo(p)
+            p.restore()
+        p.end()
+
+
+def _overlay_for(widget: QWidget) -> HaloOverlay | None:
+    ov = getattr(widget.window(), "_halo_overlay", None)
+    return ov if ov is not None and shiboken6.isValid(ov) else None
+
+
+class HaloMixin:
+    """For widgets whose glow may reach past their own edges."""
+
+    def halo_rect(self) -> QRectF:  # local coordinates
+        raise NotImplementedError
+
+    def paint_halo(self, p: QPainter) -> None:
+        raise NotImplementedError
+
+    def _halo(self, p: QPainter) -> None:
+        """Call at the end of paintEvent: glow via the overlay, or inline."""
+        ov = _overlay_for(self)
+        if ov is not None:
+            ov.track(self)
+        else:
+            self.paint_halo(p)
+
+    def hideEvent(self, event) -> None:
+        ov = _overlay_for(self)
+        if ov is not None:
+            ov.forget(self)
+        super().hideEvent(event)
+
+
 # --- transport buttons -------------------------------------------------------
 
-class TransportButton(QAbstractButton):
+class TransportButton(HaloMixin, QAbstractButton):
     """Round glossy button. ``primary`` is the oversized Play button."""
 
     KINDS = ("play", "pause", "stop", "prev", "next")
@@ -69,16 +163,6 @@ class TransportButton(QAbstractButton):
         elif hovered:
             top, bottom = top.lighter(115), bottom.lighter(115)
 
-        # Soft outer glow on the primary button.
-        if self.primary:
-            glow = _c("glow")
-            g = QRadialGradient(r.center(), d * 0.5 + 6)
-            g.setColorAt(0.78, _alpha(glow, 110 if hovered else 60))
-            g.setColorAt(1.0, _alpha(glow, 0))
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(g)
-            p.drawEllipse(r.center(), d * 0.5 + 6, d * 0.5 + 6)
-
         body = QLinearGradient(r.topLeft(), r.bottomLeft())
         body.setColorAt(0, top)
         body.setColorAt(1, bottom)
@@ -105,7 +189,33 @@ class TransportButton(QAbstractButton):
             p.setBrush(Qt.BrushStyle.NoBrush)
             p.setPen(QPen(_c("accent"), 2))
             p.drawEllipse(r.adjusted(-2, -2, 2, 2))
+        if self.primary:
+            self._halo(p)
         p.end()
+
+    GLOW = 9.0   # how far the primary button's glow reaches past its rim
+
+    def halo_rect(self) -> QRectF:
+        c = QPointF(self.width() / 2, self.height() / 2)
+        rad = self.diameter / 2 + self.GLOW
+        return QRectF(c.x() - rad, c.y() - rad, 2 * rad, 2 * rad)
+
+    def paint_halo(self, p: QPainter) -> None:
+        """A soft ring around the rim only, so drawing it on top never tints the button."""
+        c = QPointF(self.width() / 2, self.height() / 2)
+        body = self.diameter / 2
+        rad = body + self.GLOW
+        hovered = self.underMouse() and self.isEnabled()
+        glow = _c("glow")
+        g = QRadialGradient(c, rad)
+        rim = body / rad
+        g.setColorAt(0.0, _alpha(glow, 0))
+        g.setColorAt(max(0.0, rim - 0.001), _alpha(glow, 0))
+        g.setColorAt(rim, _alpha(glow, 130 if hovered else 75))
+        g.setColorAt(1.0, _alpha(glow, 0))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(g)
+        p.drawEllipse(c, rad, rad)
 
     def _icon(self, r: QRectF) -> QPainterPath:
         s = r.width() * (0.36 if self.primary else 0.34)
@@ -205,7 +315,7 @@ class PaintedSlider(QSlider):
         self.reset.emit()
 
 
-class GlowSlider(PaintedSlider):
+class GlowSlider(HaloMixin, PaintedSlider):
     """Horizontal slider with a filled groove and a glowing thumb."""
 
     def __init__(self, parent=None, thumb: float = 7.0) -> None:
@@ -219,6 +329,33 @@ class GlowSlider(PaintedSlider):
 
     def sizeHint(self) -> QSize:
         return QSize(160, int(self._thumb * 2 + 8))
+
+    def _thumb_centre(self) -> QPointF:
+        return QPointF(self._pos_of(self.sliderPosition()), self.height() / 2)
+
+    def halo_rect(self) -> QRectF:
+        c, g = self._thumb_centre(), self._thumb * 2.3
+        return QRectF(c.x() - g, c.y() - g, 2 * g, 2 * g)
+
+    def paint_halo(self, p: QPainter) -> None:
+        if self.maximum() == self.minimum():
+            return
+        r, c = self._thumb, self._thumb_centre()
+        glow = _c("glow")
+        hot = self.underMouse() or self.isSliderDown()
+        rg = QRadialGradient(c, r * 2.3)
+        rg.setColorAt(0.35, _alpha(glow, 200 if hot else 140))
+        rg.setColorAt(1.0, _alpha(glow, 0))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(rg)
+        p.drawEllipse(c, r * 2.3, r * 2.3)
+        thumb = _c("thumb")
+        tg = QRadialGradient(QPointF(c.x() - r * 0.3, c.y() - r * 0.4), r * 1.4)
+        tg.setColorAt(0, thumb.lighter(130))
+        tg.setColorAt(1, thumb)
+        p.setBrush(tg)
+        p.setPen(QPen(_c("btn-ring"), 1))
+        p.drawEllipse(c, r, r)
 
     def paintEvent(self, event) -> None:
         p = QPainter(self)
@@ -239,26 +376,11 @@ class GlowSlider(PaintedSlider):
             g.setColorAt(1, fc)
             p.setBrush(g)
             p.drawRoundedRect(fill, 3, 3)
-
-            glow = _c("glow")
-            hot = self.underMouse() or self.isSliderDown()
-            rg = QRadialGradient(QPointF(x, cy), r * 2.3)
-            rg.setColorAt(0.35, _alpha(glow, 200 if hot else 140))
-            rg.setColorAt(1.0, _alpha(glow, 0))
-            p.setBrush(rg)
-            p.drawEllipse(QPointF(x, cy), r * 2.3, r * 2.3)
-
-            thumb = _c("thumb")
-            tg = QRadialGradient(QPointF(x - r * 0.3, cy - r * 0.4), r * 1.4)
-            tg.setColorAt(0, thumb.lighter(130))
-            tg.setColorAt(1, thumb)
-            p.setBrush(tg)
-            p.setPen(QPen(_c("btn-ring"), 1))
-            p.drawEllipse(QPointF(x, cy), r, r)
+            self._halo(p)   # glow + thumb, drawn over the neighbours
         p.end()
 
 
-class Fader(PaintedSlider):
+class Fader(HaloMixin, PaintedSlider):
     """Vertical EQ fader: centre-zero groove, lit from 0 to the value, glossy cap."""
 
     def __init__(self, parent=None) -> None:
@@ -302,14 +424,25 @@ class Fader(PaintedSlider):
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(fill)
         p.drawRoundedRect(lit, 2.5, 2.5)
+        self._halo(p)   # glow + cap, drawn over the neighbours
+        p.end()
+
+    def halo_rect(self) -> QRectF:
+        cx, y = self.width() / 2, self._pos_of(self.sliderPosition())
+        return QRectF(cx - 15, y - 15, 30, 30)
+
+    def paint_halo(self, p: QPainter) -> None:
+        cx, y = self.width() / 2, self._pos_of(self.sliderPosition())
+        enabled = self.isEnabled()
+        fill = _c("groove-fill") if enabled else _c("text-muted")
         if enabled and self.value() != 0:
             glow = _c("glow")
             rg = QRadialGradient(QPointF(cx, y), 14)
             rg.setColorAt(0.3, _alpha(glow, 120))
             rg.setColorAt(1, _alpha(glow, 0))
+            p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(rg)
             p.drawEllipse(QPointF(cx, y), 14, 14)
-
         cap = QRectF(cx - 11, y - 5.5, 22, 11)
         cg = QLinearGradient(cap.topLeft(), cap.bottomLeft())
         base = _c("fader-cap")
@@ -321,7 +454,6 @@ class Fader(PaintedSlider):
         p.drawRoundedRect(cap, 2.5, 2.5)
         p.setPen(QPen(fill, 1.5))
         p.drawLine(QPointF(cap.left() + 4, y), QPointF(cap.right() - 4, y))
-        p.end()
 
 
 class Knob(QDial):

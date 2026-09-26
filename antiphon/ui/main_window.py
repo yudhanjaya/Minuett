@@ -29,7 +29,7 @@ from .skin.components import (
     ViewHeader, icon_button, px, section_label, space, themed_icon, tune_item_view, view,
 )
 from .skin.icons import icon, pixmap
-from .skin.widgets import GlowSlider, StatusDisplay, TransportButton
+from .skin.widgets import GlowSlider, HaloOverlay, StatusDisplay, TransportButton
 from .views.accounts_panel import AccountsPanel
 from .views.now_playing_view import NowPlayingView, QueueList
 from .views.browse_tree import BrowseTree
@@ -292,6 +292,9 @@ class MainWindow(QMainWindow):
         cl.addWidget(splitter, 1)
         self.setCentralWidget(central)
         self.body = splitter
+        # Glows (slider thumbs, EQ caps, the Play button) paint on this layer,
+        # above neighbouring widgets instead of being clipped at their edges.
+        self.halos = HaloOverlay(central)
 
         self._build_menus()
         self.nav.setFocus()  # start keyboard focus in the navigation, not on a button

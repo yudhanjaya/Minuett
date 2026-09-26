@@ -9,7 +9,7 @@
   --panel: #e6e9ef;
   --border: #ccd0da;
   --text: #4c4f69;
-  --text-muted: #8c8fa1;
+  --text-muted: #63667a;
   --accent: #8839ef;
   --accent-text: #eff1f5;
   --selection: #d6cdf6;
@@ -23,7 +23,7 @@
   --scrollbar-hover: #9ca0b0;
   --tooltip: #4c4f69;
   --tooltip-text: #eff1f5;
-  --warning: #df8e1d;
+  --warning: #8f5e10;
 
   --chrome-top: #f5f6f9;
   --chrome-bottom: #dce0e8;
@@ -44,8 +44,8 @@
   --glow: #ea76cb;
 
   --lcd: #e6e9ef;
-  --lcd-text: #1e66f5;
-  --lcd-dim: #8c8fa1;
+  --lcd-text: #0a58f0;
+  --lcd-dim: #63667a;
   --lcd-border: #ccd0da;
 
   --eq-curve: #179299;

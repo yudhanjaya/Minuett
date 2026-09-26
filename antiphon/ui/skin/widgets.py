@@ -41,6 +41,7 @@ class TransportButton(QAbstractButton):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(self.sizeHint())
         self.setAttribute(Qt.WidgetAttribute.WA_Hover)
+        self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
 
     def set_kind(self, kind: str) -> None:
         if kind != self.kind:
@@ -96,6 +97,10 @@ class TransportButton(QAbstractButton):
             icon.setAlpha(90)
         p.setBrush(icon)
         p.drawPath(self._icon(r))
+        if self.hasFocus():  # keyboard focus ring
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.setPen(QPen(_c("accent"), 2))
+            p.drawEllipse(r.adjusted(-2, -2, 2, 2))
         p.end()
 
     def _icon(self, r: QRectF) -> QPainterPath:

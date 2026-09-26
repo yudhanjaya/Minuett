@@ -94,5 +94,35 @@ A file with the same name as a built-in theme (e.g. `nord.css`) replaces it.
 | Display | `--lcd`, `--lcd-text`, `--lcd-dim`, `--lcd-border` | the now-playing readout |
 | Equalizer | `--eq-curve`, `--eq-fill`, `--eq-grid` | response curve, its shading, grid |
 | | `--fader-cap`, `--knob-top`, `--knob-bottom` | fader caps and knob bodies |
-| Type | `--font`, `--font-size`, `--lcd-font` | UI font list, size (px), display font |
+| Type | `--font`, `--font-size`, `--lcd-font` | UI font list, base size (px), display font |
 | Shape | `--radius` | corner radius for inputs, buttons, panels |
+
+### Layout tokens
+
+Spacing, sizes and the type scale are variables too, defined once in
+RealPlayer Classic and inherited by every theme. Override them to change the
+density of the whole app:
+
+```css
+:root {
+  --row-height: 36px;        /* roomier library rows */
+  --control-height: 36px;    /* taller buttons and fields */
+  --space-4: 20px;           /* wider view padding */
+}
+```
+
+| Variable | Default | Used for |
+|---|---|---|
+| `--space-1` … `--space-6` | 4, 8, 12, 16, 24, 32 px | the spacing scale: gaps, padding, margins |
+| `--control-height` | 32px | buttons, text fields, dropdowns |
+| `--row-height` | 30px | list and table rows |
+| `--nav-item-height` | 38px | navigation rail items |
+| `--text-xs` … `--text-2xl` | 11, 12, 13, 15, 18, 22 px | type scale: labels, secondary text, body, headings, view titles, Now Playing title |
+
+Layout changes apply the next time Antiphon starts; colors apply immediately.
+
+### Contrast
+
+Built-in themes are tested to keep normal text at 4.5:1 contrast or better
+(WCAG 2.2 AA) against their backgrounds. That's why some muted colors are a
+little brighter than in the editor themes they're based on.

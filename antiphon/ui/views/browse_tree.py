@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from PySide6.QtCore import QSettings, Qt, Signal
-from PySide6.QtWidgets import QComboBox, QHBoxLayout, QLabel, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QComboBox, QHBoxLayout, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget
 
 from antiphon.core.library.browse import ARRANGEMENTS, DEFAULT_ARRANGEMENT, Node, build_tree, matcher
 from antiphon.core.library.db import Track
+from antiphon.ui.skin.components import label, section_label, space, tune_item_view
+from antiphon.ui.skin.manager import manager
 
 PathRole = Qt.ItemDataRole.UserRole + 1
 
@@ -21,7 +23,8 @@ class BrowseTree(QWidget):
 
     def __init__(self, settings: QSettings | None = None, parent=None) -> None:
         super().__init__(parent)
-        self.setObjectName("BrowseTree")
+        self.setObjectName("BrowsePane")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.settings = settings
         self.combo = QComboBox()
         self.combo.addItems(list(ARRANGEMENTS))
@@ -37,13 +40,24 @@ class BrowseTree(QWidget):
         self.tree.header().setSectionResizeMode(0, self.tree.header().ResizeMode.Stretch)
         self.tree.header().setSectionResizeMode(1, self.tree.header().ResizeMode.ResizeToContents)
         self.tree.currentItemChanged.connect(lambda *_: self._emit())
+        self.tree.setIndentation(space(4))
+        tune_item_view(self.tree)
+        self.combo.setAccessibleName("Arrange by")
 
-        top = QHBoxLayout()
-        top.setContentsMargins(0, 0, 0, 0)
-        top.addWidget(QLabel("Arrange by"))
-        top.addWidget(self.combo, 1)
+        top = QVBoxLayout()
+        top.setContentsMargins(space(3), space(3), space(3), space(2))
+        top.setSpacing(space(2))
+        top.addWidget(section_label("Browse"))
+        row = QHBoxLayout()
+        row.setSpacing(space(2))
+        arrange = label("Arrange by", "Muted", "sm")
+        arrange.setBuddy(self.combo)
+        row.addWidget(arrange)
+        row.addWidget(self.combo, 1)
+        top.addLayout(row)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
         layout.addLayout(top)
         layout.addWidget(self.tree)
         self._tracks: list[Track] = []
@@ -64,6 +78,8 @@ class BrowseTree(QWidget):
         self.tree.clear()
         root = QTreeWidgetItem(self.tree, ["All Music", str(len(tracks))])
         root.setData(0, PathRole, ())
+        root.setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        root.setForeground(1, manager().color("text-muted"))
         self._add(root, build_tree(tracks, self.mode), expanded)
         root.setExpanded(True)
         target = self._find(keep) or root
@@ -77,7 +93,7 @@ class BrowseTree(QWidget):
             item = QTreeWidgetItem(parent, [n.label, str(n.count)])
             item.setData(0, PathRole, n.path)
             item.setTextAlignment(1, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            item.setForeground(1, self.palette().placeholderText())
+            item.setForeground(1, manager().color("text-muted"))
             self._add(item, n.children, expanded)
             if n.path in expanded:
                 item.setExpanded(True)

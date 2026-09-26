@@ -123,3 +123,33 @@ def test_every_theme_paints_the_window(app, tmp_path, monkeypatch):
         assert w.settings.value("ui/theme") == BUILTINS[-1]
     finally:
         w.close()
+
+
+def _luminance(c):
+    def ch(v):
+        v /= 255
+        return v / 12.92 if v <= 0.03928 else ((v + 0.055) / 1.055) ** 2.4
+    return 0.2126 * ch(c[0]) + 0.7152 * ch(c[1]) + 0.0722 * ch(c[2])
+
+
+def _contrast(a, b):
+    hi, lo = sorted((_luminance(a), _luminance(b)), reverse=True)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+CONTRAST_PAIRS = [
+    ("text", "surface"), ("text", "window"), ("text", "panel"),
+    ("text-muted", "surface"), ("text-muted", "panel"), ("text-muted", "window"),
+    ("accent-text", "accent"), ("selection-text", "selection"), ("button-text", "button"),
+    ("lcd-text", "lcd"), ("lcd-dim", "lcd"), ("warning", "surface"),
+]
+
+
+@pytest.mark.parametrize("theme_id", BUILTINS)
+def test_builtin_text_meets_wcag_aa_contrast(theme_id):
+    """Normal-size text needs 4.5:1 (WCAG 2.2 AA) in every built-in theme."""
+    t = load_theme_file(builtin_theme_dir() / f"{theme_id}.css", builtin=True)
+    color = lambda n: parse_color(resolve(n, t.vars))  # noqa: E731
+    failures = [(fg, bg, round(_contrast(color(fg), color(bg)), 2))
+                for fg, bg in CONTRAST_PAIRS if _contrast(color(fg), color(bg)) < 4.5]
+    assert not failures, failures

@@ -6,7 +6,7 @@ transport widgets) is a dedicated later pass, per docs/PLAN.md.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QSettings, QThread, QTimer, Qt, QUrl, Signal
+from PySide6.QtCore import QObject, QSettings, QSize, QThread, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
@@ -25,7 +25,12 @@ from .dialogs.preferences import PreferencesDialog, load_preferences
 from .dialogs.tag_editor import TagEditorDialog
 from .download_manager import DownloadManager, OpResult
 from .skin.manager import manager as theme_manager
+from .skin.components import (
+    ViewHeader, icon_button, px, section_label, space, themed_icon, tune_item_view, view,
+)
+from .skin.icons import icon, pixmap
 from .skin.widgets import GlowSlider, StatusDisplay, TransportButton
+from .views.now_playing_view import NowPlayingView, QueueList
 from .views.browse_tree import BrowseTree
 from .views.downloads_view import DownloadsView
 from .views.equalizer_view import EqualizerView, debounce
@@ -36,6 +41,8 @@ from .views.library_model import (
 
 NS_PER_MS = 1_000_000
 NAV_ITEMS = ["Now Playing", "My Library", "Playlists", "Downloads", "Equalizer"]
+NAV_ICONS = {"Now Playing": "now-playing", "My Library": "library", "Playlists": "playlists",
+             "Downloads": "downloads", "Equalizer": "equalizer"}
 
 
 class ScanWorker(QObject):
@@ -84,14 +91,15 @@ class TransportBar(QWidget):
         self.player = player
         self._seeking = False
 
-        def btn(kind: str, tip: str, slot, diameter=30, primary=False) -> TransportButton:
+        def btn(kind: str, tip: str, slot, diameter=32, primary=False) -> TransportButton:
             b = TransportButton(kind, diameter, primary)
             b.setToolTip(tip)
+            b.setAccessibleName(tip.split(" (")[0])
             b.clicked.connect(slot)
             return b
 
         self.prev_btn = btn("prev", "Previous", player.previous)
-        self.play_btn = btn("play", "Play/Pause (Space)", player.toggle, diameter=50, primary=True)
+        self.play_btn = btn("play", "Play/Pause (Space)", player.toggle, diameter=52, primary=True)
         self.stop_btn = btn("stop", "Stop", player.stop)
         self.next_btn = btn("next", "Next", player.next)
 
@@ -105,40 +113,49 @@ class TransportBar(QWidget):
 
         self.volume = GlowSlider(thumb=6)
         self.volume.setRange(0, 100)
-        self.volume.setFixedWidth(110)
+        self.volume.setFixedWidth(120)
+        self.volume.setAccessibleName("Volume")
+        self.position.setAccessibleName("Position")
         self.volume.setValue(int(player.volume * 100))
         self.volume.setToolTip("Volume")
         self.volume.valueChanged.connect(lambda v: setattr(player, "volume", v / 100))
         self.volume.reset.connect(lambda: self.volume.setValue(100))
 
         buttons = QHBoxLayout()
-        buttons.setSpacing(2)
-        buttons.addWidget(self.prev_btn, 0, Qt.AlignmentFlag.AlignVCenter)
-        buttons.addWidget(self.play_btn, 0, Qt.AlignmentFlag.AlignVCenter)
-        buttons.addWidget(self.stop_btn, 0, Qt.AlignmentFlag.AlignVCenter)
-        buttons.addWidget(self.next_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        buttons.setSpacing(space(1))
+        for b in (self.prev_btn, self.play_btn, self.stop_btn, self.next_btn):
+            buttons.addWidget(b, 0, Qt.AlignmentFlag.AlignVCenter)
 
         center = QVBoxLayout()
-        center.setSpacing(3)
+        center.setSpacing(space(1))
         center.addWidget(self.display)
         center.addWidget(self.position)
 
-        vol = QVBoxLayout()
-        vol.addStretch(1)
-        vol_label = QLabel("VOLUME")
-        vol_label.setObjectName("VolumeLabel")
-        vol.addWidget(vol_label, 0, Qt.AlignmentFlag.AlignHCenter)
-        vol.addWidget(self.volume)
-        vol.addStretch(1)
+        self.volume_icon = QLabel()
+        self.volume_icon.setAccessibleName("Volume")
+        vol = QHBoxLayout()
+        vol.setSpacing(space(2))
+        vol.addWidget(self.volume_icon, 0, Qt.AlignmentFlag.AlignVCenter)
+        vol.addWidget(self.volume, 0, Qt.AlignmentFlag.AlignVCenter)
+
+        # Filled in by the window: queue and toolbar-mode toggles.
+        self.extras = QHBoxLayout()
+        self.extras.setSpacing(space(1))
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(10, 8, 12, 8)
-        layout.setSpacing(12)
+        layout.setContentsMargins(space(3), space(2), space(3), space(2))
+        layout.setSpacing(space(4))
         layout.addLayout(buttons)
         layout.addLayout(center, 1)
         layout.addLayout(vol)
+        layout.addLayout(self.extras)
+        self.restyle()
 
         player.state_changed.connect(self._on_state)
+
+    def restyle(self) -> None:
+        """Re-render theme-colored pixmaps after a theme change."""
+        self.volume_icon.setPixmap(pixmap("volume", 18, theme_manager().color("chrome-text")))
 
     def _seek(self) -> None:
         self._seeking = False
@@ -187,8 +204,14 @@ class MainWindow(QMainWindow):
         # --- nav rail ---
         self.nav = QListWidget()
         self.nav.setObjectName("NavRail")
-        self.nav.addItems(NAV_ITEMS)
-        self.nav.setMaximumWidth(170)
+        self.nav.setIconSize(QSize(18, 18))
+        self.nav.setFixedWidth(196)
+        self.nav.setAccessibleName("Sections")
+        nav_h = px("nav-item-height", 38)
+        for name in NAV_ITEMS:
+            QListWidgetItem(name, self.nav).setSizeHint(QSize(0, nav_h))
+        self.nav.setSpacing(1)
+        self._restyle_nav()
 
         # --- center views ---
         self.stack = QStackedWidget()
@@ -211,9 +234,14 @@ class MainWindow(QMainWindow):
         self._eq_save = debounce(self, 400, lambda: save_state(eq_state_path(), self.eq_view.state))
         self.eq_view.state_changed.connect(self._on_eq_changed)
 
+        self.now_playing = NowPlayingView()
+        self.now_playing.show_library.connect(
+            lambda: self.nav.setCurrentRow(NAV_ITEMS.index("My Library")))
+
         self.views: dict[str, QWidget] = {}
-        built = {"My Library": self.library_view, "Playlists": self.playlists_view,
-                 "Downloads": self.downloads_view, "Equalizer": self.eq_view}
+        built = {"Now Playing": self.now_playing, "My Library": self.library_view,
+                 "Playlists": self.playlists_view, "Downloads": self.downloads_view,
+                 "Equalizer": self.eq_view}
         for name in NAV_ITEMS:
             w = built.get(name) or self._placeholder(name)
             self.views[name] = w
@@ -222,18 +250,25 @@ class MainWindow(QMainWindow):
         self.nav.setCurrentRow(NAV_ITEMS.index("My Library"))
 
         # --- queue pane ---
-        self.queue_list = QListWidget()
+        self.queue_list = QueueList()
+        self.queue_list.setAccessibleName("Up next")
         self.queue_list.itemDoubleClicked.connect(
             lambda it: self.player.play_index(self.queue_list.row(it)))
         queue_pane = QWidget()
         queue_pane.setObjectName("QueuePane")
         queue_pane.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
+        queue_pane.setMinimumWidth(220)
         ql = QVBoxLayout(queue_pane)
         ql.setContentsMargins(0, 0, 0, 0)
         ql.setSpacing(0)
-        queue_title = QLabel("Now Playing")
-        queue_title.setObjectName("PaneTitle")
-        ql.addWidget(queue_title)
+        qhead = QHBoxLayout()
+        qhead.setContentsMargins(space(3), space(3), space(3), space(2))
+        qhead.addWidget(section_label("Up next"))
+        qhead.addStretch(1)
+        self.queue_count = QLabel()
+        self.queue_count.setObjectName("Muted")
+        qhead.addWidget(self.queue_count)
+        ql.addLayout(qhead)
         ql.addWidget(self.queue_list)
         self.queue_pane = queue_pane
 
@@ -242,7 +277,8 @@ class MainWindow(QMainWindow):
         splitter.addWidget(self.stack)
         splitter.addWidget(queue_pane)
         splitter.setStretchFactor(1, 1)
-        splitter.setSizes([160, 800, 240])
+        splitter.setCollapsible(1, False)
+        splitter.setSizes([196, 800, 270])
 
         central = QWidget()
         cl = QVBoxLayout(central)
@@ -253,6 +289,7 @@ class MainWindow(QMainWindow):
         self.body = splitter
 
         self._build_menus()
+        self.nav.setFocus()  # start keyboard focus in the navigation, not on a button
 
         # --- player wiring ---
         self.player.track_changed.connect(self._on_track_changed)
@@ -279,7 +316,12 @@ class MainWindow(QMainWindow):
         return label
 
     def _build_library_view(self) -> QWidget:
-        self.search = QLineEdit(placeholderText="Search library…", clearButtonEnabled=True)
+        self.search = QLineEdit(placeholderText="Search title, artist, album…", clearButtonEnabled=True)
+        self.search.setAccessibleName("Search library")
+        self.search.setFixedWidth(300)
+        self._search_icon = self.search.addAction(
+            icon("search", 16, "text-muted"), QLineEdit.ActionPosition.LeadingPosition)
+        themed_icon(self._search_icon, "search", 16, "text-muted")
         self.search.textChanged.connect(self.proxy.set_search)
 
         table = LibraryTable()
@@ -291,12 +333,12 @@ class MainWindow(QMainWindow):
         # read-only column (Time, Format…) or pressing Enter plays.
         table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked
                               | QAbstractItemView.EditTrigger.EditKeyPressed)
-        table.verticalHeader().hide()
-        table.verticalHeader().setDefaultSectionSize(22)
+        tune_item_view(table)
         table.setAlternatingRowColors(True)
+        table.setShowGrid(False)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         table.horizontalHeader().setStretchLastSection(True)
-        for col, width in ((0, 36), (1, 260), (2, 180), (3, 200), (4, 56)):
+        for col, width in ((0, 48), (1, 300), (2, 190), (3, 190), (4, 130), (5, 64)):
             table.setColumnWidth(col, width)
         table.doubleClicked.connect(self._on_table_double_click)
         table.play_requested.connect(self._play_from_table)
@@ -324,17 +366,27 @@ class MainWindow(QMainWindow):
         self._browse_timer.timeout.connect(
             lambda: self.browse.set_tracks(self.library_model.tracks))
 
-        right = QWidget()
-        rl = QVBoxLayout(right)
-        rl.setContentsMargins(0, 0, 0, 0)
-        rl.addWidget(self.search)
-        rl.addWidget(table)
+        self.library_header = ViewHeader("My Library")
+        self.library_header.add(self.search)
+        for sig in (self.library_model.rowsInserted, self.library_model.rowsRemoved,
+                    self.library_model.modelReset, self.proxy.layoutChanged,
+                    self.proxy.rowsInserted, self.proxy.rowsRemoved, self.proxy.modelReset):
+            sig.connect(self._update_library_subtitle)
+        self._update_library_subtitle()
+
         split = QSplitter()
         split.addWidget(self.browse)
-        split.addWidget(right)
+        split.addWidget(table)
         split.setStretchFactor(1, 1)
-        split.setSizes([220, 700])
-        return split
+        split.setCollapsible(1, False)
+        split.setSizes([230, 700])
+        return view(self.library_header, split)
+
+    def _update_library_subtitle(self, *_) -> None:
+        total, shown = self.library_model.rowCount(), self.proxy.rowCount()
+        noun = "song" if total == 1 else "songs"
+        text = f"{total} {noun}" if shown == total else f"{shown} of {total} {noun}"
+        self.library_header.set_subtitle(text)
 
     def _schedule_browse_rebuild(self, *_) -> None:
         self._browse_timer.start()
@@ -368,6 +420,15 @@ class MainWindow(QMainWindow):
                                shortcut=QKeySequence("Ctrl+T"), toggled=self.set_compact)
         view_menu.addAction(self.toggle_queue)
         view_menu.addAction(self.compact)
+        self.queue_button = icon_button("queue", "Show or hide the Up Next queue",
+                                        checkable=True)
+        self.queue_button.setChecked(True)
+        self.queue_button.toggled.connect(self.toggle_queue.setChecked)
+        self.toggle_queue.toggled.connect(self.queue_button.setChecked)
+        self.compact_button = icon_button("compact", "Toolbar mode (Ctrl+T)",
+                                          slot=lambda: self.compact.toggle())
+        self.transport.extras.addWidget(self.queue_button)
+        self.transport.extras.addWidget(self.compact_button)
         view_menu.addSeparator()
         self.theme_menu = view_menu.addMenu("&Theme")
         self._build_theme_menu()
@@ -507,33 +568,38 @@ class MainWindow(QMainWindow):
         self.player.poll()
         self.transport.tick()
 
-    def _refresh_queue(self) -> None:
-        self.queue_list.clear()
+    def _queue_rows(self) -> list[tuple[str, str]]:
+        rows = []
         for item in self.player.queue:
             t = self._track_cache.get(item.track_id) if item.track_id else None
-            label = f"{t.artist} – {t.title}" if t and t.artist else (t.title if t else item.path)
-            self.queue_list.addItem(QListWidgetItem(label))
-        self._highlight_current()
+            title = (t.title if t else None) or item.path.rsplit("/", 1)[-1]
+            sub = " · ".join(x for x in ((t.artist if t else None), (t.album if t else None)) if x)
+            rows.append((title, sub))
+        return rows
+
+    def _refresh_queue(self) -> None:
+        rows = self._queue_rows()
+        self.queue_list.set_rows(rows, self.player.index)
+        n = len(rows)
+        self.queue_count.setText(f"{n} track{'s' if n != 1 else ''}" if n else "")
 
     def _clear_empty_hint(self, *_) -> None:
         if self.statusBar().currentMessage().startswith("Library is empty"):
             self.statusBar().clearMessage()
 
     def _highlight_current(self) -> None:
-        idx = self.player.index
-        accent = theme_manager().color("accent")
-        for i in range(self.queue_list.count()):
-            item = self.queue_list.item(i)
-            f = item.font()
-            f.setBold(i == idx)
-            item.setFont(f)
-            item.setForeground(accent if i == idx else self.queue_list.palette().text())
+        self.queue_list.set_current(self.player.index)
+
+    def _restyle_nav(self) -> None:
+        for i, name in enumerate(NAV_ITEMS):
+            self.nav.item(i).setIcon(icon(NAV_ICONS[name], 18, "text-muted", active="selection-text"))
 
     def _on_track_changed(self, index: int, item: QueueItem | None) -> None:
         self._bitrate = None
         self._highlight_current()
         if item is None:
             self.transport.display.set_text("Antiphon", "Stopped")
+            self.now_playing.show_track(None)
             self.setWindowTitle("Antiphon")
             return
         t = self._track_cache.get(item.track_id) if item.track_id else None
@@ -562,6 +628,11 @@ class MainWindow(QMainWindow):
             parts.append(" ".join(x for x in (codec, f"{round(bitrate / 1000)} kbps" if bitrate else "") if x))
         self.transport.display.set_text(headline, "  ·  ".join(parts))
         self.setWindowTitle(f"{title} — Antiphon")
+        rows = self._queue_rows()
+        nxt = self.player.index + 1
+        up_next = rows[nxt][0] if 0 < nxt < len(rows) else None
+        fmt = parts[-1] if (bitrate or codec) else ""
+        self.now_playing.show_track(t, item.path, fmt, up_next)
 
     # --- themes -------------------------------------------------------------
 
@@ -590,7 +661,9 @@ class MainWindow(QMainWindow):
         theme = theme_manager().apply(theme_id)
         self.settings.setValue("ui/theme", theme.id)
         self._build_theme_menu()
-        self._highlight_current()
+        self._restyle_nav()
+        self.transport.restyle()
+        self.queue_list.viewport().update()
 
     def _open_theme_folder(self) -> None:
         folder = theme_manager().user_dir

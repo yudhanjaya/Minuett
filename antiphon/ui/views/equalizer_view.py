@@ -21,6 +21,7 @@ from antiphon.core.equalizer import (
     PREAMP_MIN, Q_MAX, Q_MIN, EqState, PresetStore, log_freqs, peak_db, response_db,
 )
 from antiphon.ui.skin.manager import manager as theme_manager
+from antiphon.ui.skin.components import ViewHeader, button, label, space, view
 from antiphon.ui.skin.widgets import Fader, Knob
 
 DIAL_STEPS = 1000
@@ -40,6 +41,10 @@ def _log_to_dial(v: float, lo: float, hi: float) -> int:
 
 def _dial_to_log(pos: int, lo: float, hi: float) -> float:
     return math.exp(math.log(lo) + pos / DIAL_STEPS * (math.log(hi) - math.log(lo)))
+
+
+def manager_color(name: str) -> str:
+    return theme_manager().color(name).name()
 
 
 def _fader() -> Fader:
@@ -215,28 +220,25 @@ class EqualizerView(QWidget):
         self.state = state.copy()
         self.presets = presets
 
-        self.power = QPushButton("EQ On", checkable=True)
+        self.power = button("EQ On", "power", "secondary", "Turn the equalizer on or off")
+        self.power.setCheckable(True)
         self.power.toggled.connect(self._on_power)
         self.preset_box = QComboBox()
         self.preset_box.setPlaceholderText("Custom")
-        self.preset_box.setMinimumWidth(160)
+        self.preset_box.setMinimumWidth(170)
+        self.preset_box.setAccessibleName("Preset")
+        self.preset_box.setToolTip("Preset")
         self.preset_box.activated.connect(self._on_preset_chosen)
-        save = QPushButton("Save Preset…", clicked=self._save_preset)
-        self.delete_btn = QPushButton("Delete Preset", clicked=self._delete_preset)
-        reset = QPushButton("Reset", clicked=lambda: self._load_preset("Flat"))
-        self.peak_label = QLabel()
-        self.peak_label.setObjectName("EqPeak")
-
-        top = QHBoxLayout()
-        top.addWidget(self.power)
-        top.addSpacing(12)
-        top.addWidget(QLabel("Preset"))
-        top.addWidget(self.preset_box)
-        top.addWidget(save)
-        top.addWidget(self.delete_btn)
-        top.addWidget(reset)
-        top.addStretch(1)
-        top.addWidget(self.peak_label)
+        save = button("Save", "save", "ghost", "Save these settings as a preset",
+                      slot=self._save_preset)
+        self.delete_btn = button("", "trash", "ghost", "Delete this preset",
+                                 slot=self._delete_preset)
+        reset = button("Reset", "retry", "ghost", "Back to Flat",
+                       slot=lambda: self._load_preset("Flat"))
+        self.header = ViewHeader("Equalizer", "10-band parametric")
+        self.header.add(self.power, self.preset_box, save, self.delete_btn, reset)
+        # The clipping hint lives in the header's subtitle line.
+        self.peak_label = self.header.subtitle
 
         self.curve = ResponseCurve()
 
@@ -249,7 +251,7 @@ class EqualizerView(QWidget):
         self.preamp_label = QLabel(alignment=Qt.AlignmentFlag.AlignCenter)
 
         strips = QGridLayout()
-        strips.setHorizontalSpacing(4)
+        strips.setHorizontalSpacing(space(1))
         # Mirror BandStrip's layout so the preamp fader lines up with the bands:
         # value label, fader, then the same height the two knobs take.
         pre_w = QWidget()
@@ -280,11 +282,15 @@ class EqualizerView(QWidget):
                         for w in (s0.freq, s0.freq_label, s0.q, s0.q_label))
         self._preamp_foot.setFixedHeight(knob_area + 3 * s0.layout().spacing())
 
+        body = QWidget()
+        bl = QVBoxLayout(body)
+        bl.setContentsMargins(space(4), space(4), space(4), space(4))
+        bl.setSpacing(space(4))
+        bl.addWidget(self.curve)
+        bl.addLayout(strips, 1)
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(8, 4, 8, 8)
-        layout.addLayout(top)
-        layout.addWidget(self.curve)
-        layout.addLayout(strips, 1)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(view(self.header, body))
 
         self._refresh_presets()
         self._show(self.state)
@@ -310,10 +316,15 @@ class EqualizerView(QWidget):
     def _refresh(self, active: int | None = None) -> None:
         self.curve.set_state(self.state, active)
         peak = peak_db(self.state)
-        if self.state.enabled and peak > 0.5:
-            self.peak_label.setText(f"Peak {peak:+.1f} dB: lower the preamp to avoid clipping")
+        if not self.state.enabled:
+            self.header.set_subtitle("Off: audio passes through unchanged")
+        elif peak > 0.5:
+            warn = manager_color("warning")
+            self.header.set_subtitle(
+                f'<span style="color:{warn}">Peak {peak:+.1f} dB: lower the preamp to avoid clipping</span>')
         else:
-            self.peak_label.setText("")
+            name = self.state.preset or "Custom"
+            self.header.set_subtitle(f"{name} · 10-band parametric")
 
     def _emit(self, active: int | None = None) -> None:
         self._refresh(active)

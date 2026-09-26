@@ -35,7 +35,7 @@ def test_slider_drag_updates_state_and_marks_custom(view):
     assert view.preset_box.currentIndex() == -1   # shows "Custom"
     assert "Peak +6.5" in view.peak_label.text()
     view.preamp.setValue(-70)
-    assert view.peak_label.text() == ""
+    assert "Peak" not in view.peak_label.text()
 
 
 def test_knobs_move_frequency_and_q(view):

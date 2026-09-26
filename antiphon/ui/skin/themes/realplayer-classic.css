@@ -10,8 +10,8 @@
   --panel: #25292f;
   --border: #121417;
   --text: #d8dde5;
-  --text-muted: #8a93a0;
-  --accent: #3d8ee0;
+  --text-muted: #8d96a2;
+  --accent: #2276ce;
   --accent-text: #ffffff;
   --selection: #1f4f82;
   --selection-text: #ffffff;
@@ -46,7 +46,7 @@
 
   --lcd: #0a1622;
   --lcd-text: #8fd8ff;
-  --lcd-dim: #4f7f9f;
+  --lcd-dim: #5588a8;
   --lcd-border: #05090e;
 
   --eq-curve: #57b0ff;
@@ -60,4 +60,22 @@
   --font-size: 13px;
   --lcd-font: "DejaVu Sans Mono", monospace;
   --radius: 3px;
+
+  /* Layout tokens. Every theme inherits these; override them to change the
+     density (e.g. --row-height: 36px for a roomier library). */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --control-height: 32px;
+  --row-height: 30px;
+  --nav-item-height: 38px;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
 }

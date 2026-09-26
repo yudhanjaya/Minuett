@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PySide6.QtCore import QSettings
+from PySide6.QtCore import QSettings, Qt
 from PySide6.QtWidgets import (
     QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QWidget,
@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
 from antiphon.core.downloader.playlist import js_runtimes
 from antiphon.core.downloader.worker import Preferences
 from antiphon.ui.download_manager import default_music_root
+from antiphon.ui.skin.components import button, label, space
 
 FORMATS = [("native", "Original (Opus or M4A, no re-encoding)"),
            ("mp3", "MP3 (for older devices; re-encodes)")]
@@ -32,16 +33,17 @@ class PreferencesDialog(QDialog):
         prefs = load_preferences(settings)
 
         self.root = QLineEdit(str(prefs.music_root))
-        browse = QPushButton("Browse…", clicked=self._browse)
+        browse = button("Browse…", "folder", "secondary", slot=self._browse)
         row = QWidget()
         rl = QHBoxLayout(row)
         rl.setContentsMargins(0, 0, 0, 0)
+        rl.setSpacing(space(2))
         rl.addWidget(self.root, 1)
         rl.addWidget(browse)
 
         self.format = QComboBox()
-        for key, label in FORMATS:
-            self.format.addItem(label, key)
+        for key, format_label in FORMATS:
+            self.format.addItem(format_label, key)
         self.format.setCurrentIndex(max(0, [k for k, _ in FORMATS].index(prefs.audio_format)
                                         if prefs.audio_format in dict(FORMATS) else 0))
 
@@ -49,10 +51,15 @@ class PreferencesDialog(QDialog):
             "(install Deno or Node.js)"
 
         form = QFormLayout(self)
-        form.addRow("Download folder", row)
-        form.addRow("", QLabel("Each playlist gets its own subfolder."))
-        form.addRow("Audio format", self.format)
-        form.addRow("JavaScript runtime", QLabel(runtimes))
+        form.setContentsMargins(space(5), space(5), space(5), space(4))
+        form.setHorizontalSpacing(space(3))
+        form.setVerticalSpacing(space(3))
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        for text, widget in (("Download folder", row), ("", label("Each playlist gets its own subfolder.", "Muted", "sm")),
+                             ("Audio format", self.format), ("JavaScript runtime", label(runtimes, "Muted"))):
+            lab = QLabel(text)
+            lab.setObjectName("FormLabel")
+            form.addRow(lab, widget)
         buttons = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._save)

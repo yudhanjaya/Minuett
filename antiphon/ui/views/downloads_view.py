@@ -2,15 +2,19 @@
 
 from __future__ import annotations
 
-from PySide6.QtCore import QAbstractTableModel, QModelIndex, Qt
+from PySide6.QtCore import QAbstractTableModel, QModelIndex, QRectF, Qt
+from PySide6.QtGui import QPainter
 from PySide6.QtWidgets import (
-    QApplication, QHBoxLayout, QHeaderView, QLabel, QPushButton, QStyle,
-    QStyledItemDelegate, QStyleOptionProgressBar, QTableView, QVBoxLayout, QWidget,
+    QHeaderView, QStackedWidget, QStyledItemDelegate, QTableView, QVBoxLayout, QWidget,
 )
 
 from antiphon.core.downloader.worker import Job, JobStatus
 from antiphon.core.library.db import LibraryDB
 from antiphon.ui.download_manager import CHECK, IMPORT, RETRY, DownloadManager, OpResult
+from antiphon.ui.skin.components import (
+    ViewHeader, button, label, space, tune_item_view, view,
+)
+from antiphon.ui.skin.manager import manager
 
 COLS = ["#", "Title", "Status", "Progress"]
 STATUS_TEXT = {
@@ -19,6 +23,11 @@ STATUS_TEXT = {
     JobStatus.DONE: "Done", JobStatus.SKIPPED: "Skipped",
     JobStatus.FAILED: "Failed", JobStatus.CANCELLED: "Cancelled",
     JobStatus.UNAVAILABLE: "Unavailable",
+}
+STATUS_COLOR = {  # theme variables
+    JobStatus.DOWNLOADING: "accent", JobStatus.CONVERTING: "accent", JobStatus.TAGGING: "accent",
+    JobStatus.FAILED: "warning", JobStatus.QUEUED: "text-muted", JobStatus.SKIPPED: "text-muted",
+    JobStatus.UNAVAILABLE: "text-muted", JobStatus.CANCELLED: "text-muted",
 }
 
 
@@ -65,28 +74,45 @@ class JobsModel(QAbstractTableModel):
                 return STATUS_TEXT[job.status]
         if role == Qt.ItemDataRole.ToolTipRole and job.error:
             return job.error
+        if role == Qt.ItemDataRole.ForegroundRole and col == 2 and job.status in STATUS_COLOR:
+            return manager().color(STATUS_COLOR[job.status])
+        if role == Qt.ItemDataRole.ForegroundRole and col == 0:
+            return manager().color("text-muted")
         if role == self.ProgressRole:
             return job
         return None
 
 
 class ProgressDelegate(QStyledItemDelegate):
-    def paint(self, painter, option, index) -> None:
+    """A slim rounded bar with the percentage beside it."""
+
+    def paint(self, p: QPainter, option, index) -> None:
         job: Job | None = index.data(JobsModel.ProgressRole)
         if job is None or index.column() != 3:
-            return super().paint(painter, option, index)
-        bar = QStyleOptionProgressBar()
-        bar.rect = option.rect.adjusted(2, 3, -2, -3)
-        bar.minimum, bar.maximum = 0, 100
+            return super().paint(p, option, index)
+        tm = manager()
         if job.status in (JobStatus.CONVERTING, JobStatus.TAGGING, JobStatus.DONE):
-            bar.progress = 100
+            frac = 1.0
         elif job.status is JobStatus.DOWNLOADING:
-            bar.progress = int(job.progress * 100)
+            frac = job.progress
         else:
-            bar.progress = 0
-        bar.textVisible = job.status is JobStatus.DOWNLOADING
-        bar.text = f"{bar.progress}%"
-        QApplication.style().drawControl(QStyle.ControlElement.CE_ProgressBar, bar, painter)
+            return  # nothing to show for queued/failed/skipped rows
+        p.save()
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        r = QRectF(option.rect).adjusted(space(2), 0, -space(2), 0)
+        pct_w = 40.0 if job.status is JobStatus.DOWNLOADING else 0.0
+        bar = QRectF(r.left(), r.center().y() - 3, r.width() - pct_w, 6)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(tm.color("groove"))
+        p.drawRoundedRect(bar, 3, 3)
+        p.setBrush(tm.color("groove-fill") if job.status is not JobStatus.DONE else tm.color("text-muted"))
+        p.drawRoundedRect(QRectF(bar.left(), bar.top(), bar.width() * frac, bar.height()), 3, 3)
+        if pct_w:
+            p.setPen(tm.color("text-muted"))
+            p.drawText(QRectF(bar.right(), r.top(), pct_w, r.height()),
+                       Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
+                       f"{round(frac * 100)}%")
+        p.restore()
 
 
 class DownloadsView(QWidget):
@@ -96,32 +122,45 @@ class DownloadsView(QWidget):
         self.manager = manager
         self._title = ""
 
-        self.heading = QLabel("No downloads yet. Import or update a playlist from Playlists.")
-        self.heading.setWordWrap(True)
-        self.cancel_btn = QPushButton("Cancel", clicked=manager.cancel, enabled=False)
-        self.retry_btn = QPushButton("Retry Failed", clicked=manager.retry_failed, enabled=False)
-        top = QHBoxLayout()
-        top.addWidget(self.heading, 1)
-        top.addWidget(self.retry_btn)
-        top.addWidget(self.cancel_btn)
+        self.header = ViewHeader("Downloads", "Nothing downloading")
+        self.retry_btn = button("Retry Failed", "retry", "ghost",
+                                "Try the failed songs again", slot=manager.retry_failed)
+        self.cancel_btn = button("Cancel", "close", "ghost",
+                                 "Stop after the current song", slot=manager.cancel)
+        self.retry_btn.setEnabled(False)
+        self.cancel_btn.setEnabled(False)
+        self.header.add(self.retry_btn, self.cancel_btn)
+        self.heading = self.header.subtitle  # status line lives in the header
 
         self.model = JobsModel(self)
         self.table = QTableView()
         self.table.setModel(self.model)
         self.table.setItemDelegateForColumn(3, ProgressDelegate(self.table))
-        self.table.verticalHeader().hide()
-        self.table.verticalHeader().setDefaultSectionSize(24)
         self.table.setSelectionMode(QTableView.SelectionMode.NoSelection)
+        self.table.setShowGrid(False)
+        self.table.setAccessibleName("Download queue")
+        tune_item_view(self.table, stretch_column=1)
         h = self.table.horizontalHeader()
-        h.setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
-        self.table.setColumnWidth(0, 44)
-        self.table.setColumnWidth(2, 110)
-        self.table.setColumnWidth(3, 180)
+        h.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
+        self.table.setColumnWidth(0, 52)
+        self.table.setColumnWidth(2, 120)
+        self.table.setColumnWidth(3, 200)
+
+        self.empty = label("Nothing downloading. Import a playlist, or press Update on one "
+                           "in Playlists; its songs appear here with their progress.",
+                           "Muted", "md")
+        self.empty.setWordWrap(True)
+        self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty.setContentsMargins(space(6), space(6), space(6), space(6))
+        self.body = QStackedWidget()
+        self.body.addWidget(self.empty)
+        self.body.addWidget(self.table)
+        self.model.modelReset.connect(
+            lambda: self.body.setCurrentWidget(self.table if self.model.jobs else self.empty))
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.addLayout(top)
-        layout.addWidget(self.table)
+        layout.addWidget(view(self.header, self.body))
 
         manager.op_started.connect(self._on_started)
         manager.plan_ready.connect(self._on_plan)
@@ -163,7 +202,7 @@ class DownloadsView(QWidget):
         self.model.update_job(i, job)
         finished = (JobStatus.DONE, JobStatus.FAILED, JobStatus.UNAVAILABLE, JobStatus.SKIPPED)
         done = sum(j.status in finished for j in self.model.jobs)
-        self.heading.setText(f"Updating <b>{self._title}</b> — {done} of {len(self.model.jobs)}")
+        self.heading.setText(f"Updating <b>{self._title}</b> · {done} of {len(self.model.jobs)}")
         if job.status is JobStatus.DOWNLOADING:
             self.table.scrollTo(self.model.index(i, 0))
 

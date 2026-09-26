@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 from antiphon.core.library.db import LibraryDB, Track
 from antiphon.core.library.editor import KEEP, EditResult, common_values, edit_tracks
 from antiphon.core.library.tags import Cover, TagError, read_cover, sniff_image_mime
+from antiphon.ui.skin.components import button, label, space
 
 MULTIPLE = "(multiple values)"
 FIELDS = [
@@ -49,9 +50,12 @@ class TagEditorDialog(QDialog):
         self.setWindowTitle("Edit Tags" if n == 1 else f"Edit Tags — {n} tracks")
 
         form = QFormLayout()
+        form.setHorizontalSpacing(space(3))
+        form.setVerticalSpacing(space(2))
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.edits: dict[str, QLineEdit] = {}
         common = common_values(tracks)
-        for field, label in FIELDS:
+        for field, field_label in FIELDS:
             edit = QLineEdit()
             same, value = common[field]
             if same:
@@ -66,7 +70,10 @@ class TagEditorDialog(QDialog):
                 edit.setMaximumWidth(140)
             edit.textEdited.connect(lambda _t, f=field: self._dirty.add(f))
             self.edits[field] = edit
-            form.addRow(label, edit)
+            row_label = QLabel(field_label)
+            row_label.setObjectName("FormLabel")
+            row_label.setBuddy(edit)
+            form.addRow(row_label, edit)
         if n > 1:
             # Per-track titles and numbers are rarely meant to be flattened.
             for f in ("title", "track_no"):
@@ -78,12 +85,16 @@ class TagEditorDialog(QDialog):
         self.cover_label.setFixedSize(QSize(COVER_SIZE, COVER_SIZE))
         self.cover_label.setFrameShape(QLabel.Shape.StyledPanel)
         self.cover_note = QLabel(alignment=Qt.AlignmentFlag.AlignCenter, wordWrap=True)
-        replace = QPushButton("Replace…", clicked=self._replace_cover)
-        remove = QPushButton("Remove", clicked=self._remove_cover)
+        self.cover_note.setObjectName("Muted")
+        replace = button("Replace…", "image", "secondary", "Choose a JPEG or PNG",
+                         slot=self._replace_cover)
+        remove = button("Remove", "trash", "ghost", "Remove the artwork", slot=self._remove_cover)
         cover_btns = QHBoxLayout()
+        cover_btns.setSpacing(space(2))
         cover_btns.addWidget(replace)
         cover_btns.addWidget(remove)
         cover_col = QVBoxLayout()
+        cover_col.setSpacing(space(2))
         cover_col.addWidget(self.cover_label)
         cover_col.addWidget(self.cover_note)
         cover_col.addLayout(cover_btns)
@@ -91,10 +102,11 @@ class TagEditorDialog(QDialog):
         self._load_existing_cover()
 
         body = QHBoxLayout()
+        body.setSpacing(space(5))
         body.addLayout(cover_col)
         body.addLayout(form, 1)
 
-        path_label = QLabel(tracks[0].path if n == 1 else f"{n} files selected")
+        path_label = label(tracks[0].path if n == 1 else f"{n} files selected", "Muted", "sm")
         path_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
         path_label.setWordWrap(True)
 
@@ -104,10 +116,12 @@ class TagEditorDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(space(5), space(5), space(5), space(4))
+        layout.setSpacing(space(4))
         layout.addLayout(body)
         layout.addWidget(path_label)
         layout.addWidget(buttons)
-        self.resize(640, 0)
+        self.resize(680, 0)
 
     # --- cover ------------------------------------------------------------
 

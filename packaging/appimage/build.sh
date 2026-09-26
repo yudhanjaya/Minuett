@@ -64,6 +64,7 @@ $PY -m pip --version >/dev/null 2>&1 || { echo "pip for $PY is required"; exit 1
 # shellcheck disable=SC2086
 $PY -m pip install --quiet --no-compile --only-binary=:all: --target "$SITE" $DEPS
 $PY -m pip install --quiet --no-compile --no-deps --target "$SITE" "$ROOT"
+rm -f "$SITE"/minuett-*.dist-info/direct_url.json   # records the build machine's path
 rm -rf "$SITE"/*.dist-info/RECORD "$SITE/bin"
 
 echo "==> GObject introspection typelibs"

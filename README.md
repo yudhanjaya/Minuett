@@ -215,8 +215,7 @@ the next scan (imported playlists would need importing again).
   (see Installing).
 - **The AppImage doesn't start:** run it with `--appimage-extract-and-run`
   if FUSE isn't available.
-- **No sound or odd playback:** run the self-test above. It says which part
-  is missing.
+
 
 ## Building from source
 

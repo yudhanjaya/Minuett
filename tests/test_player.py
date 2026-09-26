@@ -88,3 +88,26 @@ def test_bad_file_is_skipped(tmp_path, tone):
         assert errors
     finally:
         p.shutdown()
+
+
+def test_plays_gapless_through_equalizer_with_live_changes(tmp_path, tone):
+    from antiphon.core.eq_filter import EqualizerFilter
+    from antiphon.core.equalizer import BUILTIN_PRESETS
+
+    files = [tone(tmp_path / f"{i}.mp3", seconds=0.8) for i in range(2)]
+    p = silent_player()
+    eq = EqualizerFilter()
+    p.set_audio_filter(eq.bin)
+    changes = []
+    p.track_changed.connect(lambda i, item: changes.append(i))
+    p.set_queue([QueueItem(str(f)) for f in files])
+    try:
+        assert pump(p, lambda: p.state is State.PLAYING)
+        eq.apply(BUILTIN_PRESETS["Rock"])       # while playing
+        rock_off = BUILTIN_PRESETS["Rock"].copy()
+        rock_off.enabled = False
+        eq.apply(rock_off)
+        assert pump(p, lambda: changes and changes[-1] == -1)
+        assert changes == [0, 1, -1]
+    finally:
+        p.shutdown()

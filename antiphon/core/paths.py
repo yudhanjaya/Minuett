@@ -20,3 +20,11 @@ def config_dir() -> Path:
 
 def library_db_path() -> Path:
     return data_dir() / "library.db"
+
+
+def eq_state_path() -> Path:
+    return config_dir() / "equalizer.json"
+
+
+def eq_presets_path() -> Path:
+    return config_dir() / "eq_presets.json"

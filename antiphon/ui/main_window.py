@@ -16,13 +16,16 @@ from PySide6.QtWidgets import (
 
 from antiphon.core.library.db import LibraryDB, Track
 from antiphon.core.library.scanner import scan
-from antiphon.core.paths import library_db_path
+from antiphon.core.eq_filter import EqualizerFilter
+from antiphon.core.equalizer import PresetStore, load_state, save_state
+from antiphon.core.paths import eq_presets_path, eq_state_path, library_db_path
 from antiphon.core.player import Player, QueueItem, State
 from . import ytdlp_update
 from .dialogs.preferences import PreferencesDialog, load_preferences
 from .dialogs.tag_editor import TagEditorDialog
 from .download_manager import DownloadManager, OpResult
 from .views.downloads_view import DownloadsView
+from .views.equalizer_view import EqualizerView, debounce
 from .views.playlists_view import PlaylistsView
 from .views.library_model import (
     COLUMNS, EDITABLE_ATTRS, LibraryFilterProxy, LibraryModel, format_ms,
@@ -145,6 +148,11 @@ class MainWindow(QMainWindow):
         self.db_path = str(library_db_path())
         self.db = LibraryDB(self.db_path)
         self.player = Player()
+        # EQ goes into playbin's audio-filter slot before anything plays.
+        self.eq_filter = EqualizerFilter()
+        eq_state = load_state(eq_state_path())
+        self.eq_filter.apply(eq_state)
+        self.player.set_audio_filter(self.eq_filter.bin)
         self._track_cache: dict[int, Track] = {}
 
         # --- transport ---
@@ -172,10 +180,13 @@ class MainWindow(QMainWindow):
         self.playlists_view.show_downloads.connect(
             lambda: self.nav.setCurrentRow(NAV_ITEMS.index("Downloads")))
         self.downloads_view = DownloadsView(self.db, self.downloads)
+        self.eq_view = EqualizerView(eq_state, PresetStore(eq_presets_path()))
+        self._eq_save = debounce(self, 400, lambda: save_state(eq_state_path(), self.eq_view.state))
+        self.eq_view.state_changed.connect(self._on_eq_changed)
 
         self.views: dict[str, QWidget] = {}
         built = {"My Library": self.library_view, "Playlists": self.playlists_view,
-                 "Downloads": self.downloads_view}
+                 "Downloads": self.downloads_view, "Equalizer": self.eq_view}
         for name in NAV_ITEMS:
             w = built.get(name) or self._placeholder(name)
             self.views[name] = w
@@ -407,6 +418,10 @@ class MainWindow(QMainWindow):
         items = [QueueItem(t.path, t.id) for t in tracks]
         self.player.set_queue(items, start=start)
 
+    def _on_eq_changed(self, state) -> None:
+        self.eq_filter.apply(state)   # live: GStreamer band properties are runtime-safe
+        self._eq_save.start()         # write the JSON once dragging settles
+
     # --- downloads --------------------------------------------------------
 
     def _ensure_download_root_scanned(self) -> None:
@@ -516,6 +531,9 @@ class MainWindow(QMainWindow):
                 event.ignore()
                 return
         self.downloads.shutdown()
+        if self._eq_save.isActive():
+            self._eq_save.stop()
+            save_state(eq_state_path(), self.eq_view.state)
         self.timer.stop()
         self.player.shutdown()
         self.db.close()

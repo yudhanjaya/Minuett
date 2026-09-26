@@ -8,7 +8,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
 
 ## Status
 
-**Phases 1–3 of 5 done: playback, library, metadata editing, playlist downloader.**
+**Phases 1–4 of 5 done: playback, library, metadata editing, playlist downloader, equalizer.**
 
 - [x] GStreamer playbin wrapper: queue, gapless transitions, repeat, seek,
       volume, broken files skipped. Bus polled from a 50 ms `QTimer`.
@@ -29,7 +29,11 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
       playlists is downloaded once and linked into both. Downloads view shows
       per-song progress with Cancel and Retry Failed. The playlist name is a
       sortable, searchable library column.
-- [ ] Phase 4: parametric equalizer
+- [x] Phase 4: 10-band parametric equalizer in playbin's audio-filter slot.
+      Gain slider (±12 dB), frequency knob and Q knob per band, preamp, on/off,
+      live response curve, clipping hint, JSON presets (Flat, Rock, Vocal, Bass
+      Boost, Treble Cut, plus your own). The drawn curve is checked against
+      GStreamer's actual output in the tests (within 0.05 dB).
 - [ ] Phase 5: RealPlayer skin
 - [ ] Flatpak packaging
 

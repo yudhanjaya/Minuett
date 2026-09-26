@@ -174,10 +174,22 @@ live combined response curve (standard peaking-filter formulas) drawn above.
 Defaults to ISO centers 31, 62, 125, 250, 500, 1k, 2k, 4k, 8k, 16k Hz. Preamp,
 on/off toggle, JSON presets (Flat, Rock, Vocal, Bass Boost, Treble Cut).
 
+### As built: equalizer
+
+- All ten bands are peaking filters. GStreamer makes the first and last
+  bands shelves by default, so Antiphon overrides that.
+- The curve uses GStreamer's own filter design (gain scaled as 10^(dB/40), bandwidth
+  in Hz warped with tan(bw/2)) rather than the RBJ cookbook, so it shows what
+  you hear. Knob Q is converted to bandwidth as freq / Q. The default Q of 1.5
+  matches GStreamer's own 10-band spacing.
+- Off is a bypass (gains and preamp to unity), not a pipeline relink.
+- State lives in `~/.config/antiphon/equalizer.json`; user presets in
+  `eq_presets.json`. Built-in presets can't be overwritten.
+
 ## Build order
 
 1. Playback and library scanner. ✓
 2. Metadata editing. ✓
 3. Downloader. ✓ (playlist-based sync, see below)
-4. Equalizer. ← **next**
-5. Skin pass, once functionality is stable.
+4. Equalizer. ✓
+5. Skin pass, once functionality is stable. ← **next**

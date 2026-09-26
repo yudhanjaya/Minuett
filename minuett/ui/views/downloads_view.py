@@ -10,7 +10,9 @@ from PySide6.QtWidgets import (
 
 from minuett.core.downloader.worker import Job, JobStatus
 from minuett.core.library.db import LibraryDB
-from minuett.ui.download_manager import CHECK, IMPORT, RETRY, DownloadManager, OpResult
+from minuett.ui.download_manager import (
+    CHECK, IMPORT, IMPORT_FOLDER, RETRY, DownloadManager, OpResult,
+)
 from minuett.ui.skin.components import (
     ViewHeader, button, label, space, tune_item_view, view,
 )
@@ -172,7 +174,9 @@ class DownloadsView(QWidget):
     def _on_started(self, op) -> None:
         self.cancel_btn.setEnabled(op.kind != CHECK)
         self.retry_btn.setEnabled(False)
-        if op.kind == IMPORT:
+        if op.kind == IMPORT_FOLDER:
+            self.heading.setText(f"Importing folder {op.path}…")
+        elif op.kind == IMPORT:
             self.heading.setText(f"Reading playlist… {op.url}")
         elif op.kind != RETRY:
             pl = self.db.get_playlist(op.playlist_id)
@@ -217,6 +221,8 @@ class DownloadsView(QWidget):
             j.status in (JobStatus.FAILED, JobStatus.CANCELLED) for j in self.model.jobs))
         if r.error:
             self.heading.setText(f"<b>Couldn't read the playlist.</b> {r.error}")
+        elif r.folder is not None:
+            self.heading.setText(f"<b>{r.folder.name}</b>: {r.folder.total} songs from the folder")
         elif r.kind == CHECK:
             pass  # plan heading already says what's new
         elif r.cancelled:

@@ -13,12 +13,13 @@ from pathlib import Path
 from PySide6.QtCore import QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QFont
 from PySide6.QtWidgets import (
-    QAbstractItemView, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QMessageBox,
+    QAbstractItemView, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QMenu, QMessageBox,
     QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from minuett.core.library.db import (
-    DONE, FAILED, LIVE, NEW, REMOVED, UNAVAILABLE, LibraryDB, Playlist, Track,
+    DONE, EXCLUDED, FAILED, LIVE, LOCAL_PREFIX, NEW, REMOVED, UNAVAILABLE, LibraryDB, Playlist,
+    Track,
 )
 from minuett.core.downloader.playlist import ListingError, source_of_url
 from minuett.ui.dialogs.import_playlist import ImportPlaylistDialog
@@ -31,16 +32,17 @@ from minuett.ui.skin.manager import manager
 ENTRY_STATUS_TEXT = {
     DONE: "", NEW: "Not downloaded yet", FAILED: "Failed",
     UNAVAILABLE: "Unavailable on YouTube", REMOVED: "Removed from playlist",
-    LIVE: "Live stream (skipped)",
+    LIVE: "Live stream (skipped)", EXCLUDED: "Removed by you",
 }
 # Status -> theme color variable.
 ENTRY_STATUS_COLOR = {
     NEW: "text-muted", FAILED: "warning", UNAVAILABLE: "text-muted",
-    REMOVED: "text-muted", LIVE: "text-muted",
+    REMOVED: "text-muted", LIVE: "text-muted", EXCLUDED: "text-muted",
 }
 PL_COLS = ["Playlist", "Source", "Songs", "New", "Last checked", "Last updated", ""]
 SOURCE_NAMES = {"youtube": "YouTube", "youtube-music": "YouTube Music", "spotify": "Spotify",
-                "pandora": "Pandora", "apple-music": "Apple Music", "other": "File import"}
+                "pandora": "Pandora", "apple-music": "Apple Music", "other": "File import",
+                "folder": "Folder"}
 ACTIONS_COL = len(PL_COLS) - 1
 PLAYLIST_ROW_HEIGHT = 44
 
@@ -61,6 +63,8 @@ def _when(iso: str | None) -> str:
 class PlaylistsView(QWidget):
     play_tracks = Signal(list, int)   # [Track], start index
     show_downloads = Signal()
+    import_folder_requested = Signal()
+    playlists_edited = Signal()
 
     def __init__(self, db: LibraryDB, manager_: DownloadManager, parent=None) -> None:
         super().__init__(parent)
@@ -68,6 +72,9 @@ class PlaylistsView(QWidget):
         self.manager = manager_
 
         self.header = ViewHeader("Playlists")
+        self.header.add(button("Import Folder", "folder", "secondary",
+                               "Import a folder of music as a playlist named after the folder",
+                               slot=lambda: self.import_folder_requested.emit()))
         self.header.add(button("Import Playlist", "plus", "primary",
                                "Import from YouTube, YouTube Music, Spotify or an export file",
                                slot=self.import_playlist))
@@ -126,6 +133,8 @@ class PlaylistsView(QWidget):
         eh.resizeSection(2, 200)
         eh.resizeSection(3, 200)
         self.entries.itemDoubleClicked.connect(self._play_entry)
+        self.entries.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        self.entries.customContextMenuRequested.connect(self._entry_menu)
 
         bottom = QWidget()
         bl = QVBoxLayout(bottom)
@@ -210,6 +219,14 @@ class PlaylistsView(QWidget):
             status.setMinimumWidth(150)
             cl.addWidget(status, 0, Qt.AlignmentFlag.AlignVCenter)
             return cell
+        if pl is not None and pl.is_folder:
+            rescan = button("Rescan", "refresh", "compact",
+                            "Pick up files added to or removed from the folder")
+            rescan.setMinimumHeight(28)
+            rescan.clicked.connect(lambda _=False, pid=pl.id: self.manager.update(pid))
+            rescan.setAccessibleName(f"Rescan {pl.name}")
+            cl.addWidget(rescan, 0, Qt.AlignmentFlag.AlignVCenter)
+            return cell
         file_import = pl is not None and pl.is_file_import
         if file_import:
             # An export file can't be re-read from the web: offer a newer file instead.
@@ -275,7 +292,11 @@ class PlaylistsView(QWidget):
             item.setText(0, "" if e.position is None else str(e.position + 1))
             item.setText(1, (t.title if t else None) or e.title or e.youtube_id or e.item_id or "")
             item.setText(2, (t.artist if t else None) or e.artist or "")
-            item.setText(3, ENTRY_STATUS_TEXT.get(e.status, e.status))
+            local = (e.item_id or "").startswith(LOCAL_PREFIX)
+            item.setText(3, "Added by you" if local and e.status == DONE
+                         else ENTRY_STATUS_TEXT.get(e.status, e.status))
+            item.setData(3, Qt.ItemDataRole.UserRole, e.id)
+            item.setData(2, Qt.ItemDataRole.UserRole, e.status)
             if e.status in (FAILED, UNAVAILABLE) and e.error:
                 item.setToolTip(3, e.error)
             item.setData(0, Qt.ItemDataRole.UserRole, e.track_id if e.position is not None else None)
@@ -356,6 +377,34 @@ class PlaylistsView(QWidget):
         tracks = self.db.playlist_tracks(pid)
         start = next((i for i, t in enumerate(tracks) if t.id == tid), 0)
         self.play_tracks.emit(tracks, start)
+
+    def _entry_menu(self, pos) -> None:
+        item = self.entries.itemAt(pos)
+        pid = self.current_playlist_id()
+        if item is None or pid is None:
+            return
+        entry_id = item.data(3, Qt.ItemDataRole.UserRole)
+        status = item.data(2, Qt.ItemDataRole.UserRole)
+        track_id = item.data(0, Qt.ItemDataRole.UserRole)
+        menu = QMenu(self)
+        if track_id is not None:
+            menu.addAction("Play", lambda: self._play_entry(item))
+            menu.addAction("Remove from Playlist", lambda: self._remove_entry(pid, track_id))
+        if status == EXCLUDED:
+            menu.addAction("Restore (download again on the next Update)",
+                           lambda: self._restore_entry(entry_id))
+        if not menu.isEmpty():
+            menu.exec(self.entries.viewport().mapToGlobal(pos))
+
+    def _remove_entry(self, pid: int, track_id: int) -> None:
+        self.db.remove_from_playlist(pid, [track_id])
+        self.refresh()
+        self.playlists_edited.emit()
+
+    def _restore_entry(self, entry_id: int) -> None:
+        self.db.restore_entry(entry_id)
+        self.refresh()
+        self.playlists_edited.emit()
 
     def _open_folder(self) -> None:
         pid = self.current_playlist_id()

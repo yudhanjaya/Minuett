@@ -68,6 +68,8 @@ CREATE INDEX IF NOT EXISTS idx_entries_playlist ON playlist_entries(playlist_id,
 # playlist_entries.status values
 NEW, DONE, FAILED, UNAVAILABLE, REMOVED = "new", "done", "failed", "unavailable", "removed"
 LIVE = "live"  # a live stream in the playlist; never downloaded
+EXCLUDED = "excluded"  # removed/deleted by you: updates neither show nor re-download it
+LOCAL_PREFIX = "local:"  # item_id of songs you added to a playlist yourself
 
 # Columns the tag layer owns; scanner upserts exactly these.
 TAG_FIELDS = (
@@ -136,6 +138,11 @@ class Playlist:
     @property
     def is_imported(self) -> bool:
         return self.source_url is not None
+
+    @property
+    def is_folder(self) -> bool:
+        """Imported from a folder on disk: updating rescans the folder."""
+        return bool(self.source_url and self.source_url.startswith("folder:"))
 
     @property
     def is_file_import(self) -> bool:
@@ -300,7 +307,7 @@ class LibraryDB:
 
     _PLAYLIST_SELECT = """
         SELECT p.*,
-          COUNT(e.id) FILTER (WHERE e.position IS NOT NULL) AS total,
+          COUNT(e.id) FILTER (WHERE e.position IS NOT NULL AND e.status != 'excluded') AS total,
           COUNT(e.id) FILTER (WHERE e.position IS NOT NULL AND e.status = 'done') AS downloaded,
           COUNT(e.id) FILTER (WHERE e.position IS NOT NULL AND e.status IN ('new', 'failed')) AS pending
         FROM playlists p LEFT JOIN playlist_entries e ON e.playlist_id = p.id
@@ -420,9 +427,109 @@ class LibraryDB:
         """Downloaded tracks in the playlist's current order."""
         rows = self.conn.execute(
             "SELECT t.* FROM playlist_entries e JOIN tracks t ON t.id = e.track_id "
-            "WHERE e.playlist_id = ? AND e.position IS NOT NULL ORDER BY e.position",
-            (playlist_id,))
+            "WHERE e.playlist_id = ? AND e.position IS NOT NULL AND e.status != 'excluded' "
+            "ORDER BY e.position", (playlist_id,))
         return [Track.from_row(r) for r in rows]
+
+    # --- editing playlists by hand ----------------------------------------
+
+    def add_to_playlist(self, playlist_id: int, track_ids: list[int]) -> int:
+        """Append tracks you chose. Kept across updates (see reconcile).
+        Tracks already in the playlist are skipped; returns how many were added."""
+        present = {r[0] for r in self.conn.execute(
+            "SELECT track_id FROM playlist_entries WHERE playlist_id = ? AND track_id IS NOT NULL "
+            "AND position IS NOT NULL AND status != 'excluded'", (playlist_id,))}
+        pos = self.conn.execute(
+            "SELECT COALESCE(MAX(position), -1) FROM playlist_entries WHERE playlist_id = ?",
+            (playlist_id,)).fetchone()[0]
+        added = 0
+        with self.conn:
+            for tid in track_ids:
+                if tid in present:
+                    continue
+                t = self.get(tid)
+                if t is None:
+                    continue
+                pos += 1
+                self.conn.execute(
+                    "INSERT INTO playlist_entries (playlist_id, position, item_id, youtube_id, title, "
+                    "artist, album, track_id, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'done') "
+                    "ON CONFLICT(playlist_id, item_id) DO UPDATE SET position = excluded.position, "
+                    "status = 'done', track_id = excluded.track_id",
+                    (playlist_id, pos, f"{LOCAL_PREFIX}{tid}", t.youtube_id, t.title, t.artist,
+                     t.album, tid))
+                present.add(tid)
+                added += 1
+        return added
+
+    def remove_from_playlist(self, playlist_id: int, track_ids: list[int]) -> None:
+        """Take tracks out of a playlist. Songs you'd added go away; songs from
+        the source are marked excluded so an update doesn't bring them back."""
+        with self.conn:
+            for tid in track_ids:
+                self.conn.execute(
+                    "DELETE FROM playlist_entries WHERE playlist_id = ? AND track_id = ? "
+                    "AND item_id LIKE 'local:%'", (playlist_id, tid))
+                self.conn.execute(
+                    "UPDATE playlist_entries SET status = 'excluded' WHERE playlist_id = ? "
+                    "AND track_id = ?", (playlist_id, tid))
+
+    def restore_entry(self, entry_id: int) -> None:
+        """Undo an exclusion: the next update downloads (or relinks) it again."""
+        self.conn.execute("UPDATE playlist_entries SET status = 'new' WHERE id = ? "
+                          "AND status = 'excluded'", (entry_id,))
+        self.conn.commit()
+
+    def delete_tracks(self, track_ids: list[int]) -> list[str]:
+        """Remove tracks from the library (not from disk). Their playlist
+        entries are excluded first so updates don't download them again.
+        Returns the deleted tracks' file paths."""
+        paths = []
+        with self.conn:
+            for tid in track_ids:
+                row = self.conn.execute("SELECT path FROM tracks WHERE id = ?", (tid,)).fetchone()
+                if row is None:
+                    continue
+                paths.append(row[0])
+                self.conn.execute("DELETE FROM playlist_entries WHERE track_id = ? "
+                                  "AND item_id LIKE 'local:%'", (tid,))
+                self.conn.execute("UPDATE playlist_entries SET status = 'excluded' "
+                                  "WHERE track_id = ?", (tid,))
+                self.conn.execute("DELETE FROM tracks WHERE id = ?", (tid,))
+        return paths
+
+    def memberships(self) -> dict[int, list[str]]:
+        """track id -> names of the playlists it's currently in."""
+        out: dict[int, list[str]] = {}
+        for tid, name in self.conn.execute(
+                "SELECT e.track_id, p.name FROM playlist_entries e JOIN playlists p "
+                "ON p.id = e.playlist_id WHERE e.track_id IS NOT NULL AND e.position IS NOT NULL "
+                "AND e.status != 'excluded' ORDER BY p.name COLLATE NOCASE"):
+            names = out.setdefault(tid, [])
+            if name not in names:
+                names.append(name)
+        return out
+
+    def playlist_by_name(self, name: str) -> Playlist | None:
+        row = self.conn.execute("SELECT id FROM playlists WHERE name = ? ORDER BY id LIMIT 1",
+                                (name,)).fetchone()
+        return self.get_playlist(row[0]) if row else None
+
+    def playlists_containing(self, track_id: int) -> list[int]:
+        return [r[0] for r in self.conn.execute(
+            "SELECT DISTINCT playlist_id FROM playlist_entries WHERE track_id = ? "
+            "AND position IS NOT NULL AND status != 'excluded'", (track_id,))]
+
+    def set_playlist_folder(self, playlist_id: int, folder: str) -> None:
+        self.conn.execute("UPDATE playlists SET folder = ? WHERE id = ?", (folder, playlist_id))
+        self.conn.commit()
+
+    def create_playlist(self, name: str) -> int:
+        """An empty local playlist (for Add to Playlist ▸ New Playlist…)."""
+        pid = self.conn.execute("INSERT INTO playlists (name, added) VALUES (?, ?)",
+                                (name, _now())).lastrowid
+        self.conn.commit()
+        return pid
 
     def distinct(self, column: str) -> list[str]:
         """Existing values of a text column, for editor autocompletion."""

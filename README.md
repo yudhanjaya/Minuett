@@ -29,6 +29,18 @@ Spotify and Pandora.
   "(multiple values)" and are only written if you change them. Cover art can
   be viewed, replaced and removed. Files are written first; the library only
   updates when the write succeeds.
+- Double-click (or Enter) plays a song, and pauses or resumes it if it's the
+  one playing. Titles also appear as leaves in the browse tree.
+- Right-click a song for Play/Pause, Edit Tags, Add to Playlist (including a
+  new playlist), Remove from Playlist and Delete (from the library, optionally
+  moving the file to the Trash).
+- **Import a folder as a playlist** (File ▸ Import Folder as Playlist…, or
+  Playlists ▸ Import Folder): every audio file under it, in natural order,
+  as a playlist named after the folder. Rescan picks up added and removed files.
+- Your changes survive updates: songs you add to an imported playlist stay
+  (after the source's own songs), and songs you remove or delete aren't
+  downloaded again (Restore brings one back). The playlist on YouTube or
+  Spotify itself isn't changed.
 - Genre tags in titles ("Song [lofi hip hop]") move into the genre field
   (Edit ▸ Move Genre Tags Out of Titles… tidies older downloads).
 
@@ -123,12 +135,13 @@ flatpak run io.github.yudhanjaya.Minuett --self-test
 
 ## Using it
 
-- **Add music:** File ▸ Add Music Folder…, or import a playlist from
-  Playlists ▸ Import Playlist (Ctrl+I).
-- **Play:** Enter, or double-click a read-only column (Time, Format…);
-  double-clicking a tag column edits it.
+- **Add music:** File ▸ Import Folder as Playlist… (Ctrl+Shift+I), File ▸
+  Add Music Folder…, or Playlists ▸ Import Playlist (Ctrl+I).
+- **Play/pause:** double-click a song or press Enter; F2 edits the selected
+  cell.
 - **Keys:** Space play/pause · Ctrl+. stop · Ctrl+←/→ previous/next ·
-  Ctrl+E edit tags · Ctrl+T toolbar mode · F5 rescan.
+  Ctrl+E edit tags · F2 edit cell · Delete delete · Ctrl+T toolbar mode ·
+  F5 rescan.
 
 ### Optional sign-ins
 

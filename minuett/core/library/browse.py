@@ -19,6 +19,11 @@ NO_PLAYLIST = "Not from a playlist"
 
 Level = Callable[[Track], str]
 
+# Playlist membership: track id -> names of the playlists it's in. A song can
+# be in several playlists (you can add it to more), so the Playlist
+# arrangement lists it under each.
+Memberships = dict[int, list[str]]
+
 
 def _artist(t: Track) -> str:
     return (t.artist or "").strip() or UNKNOWN_ARTIST
@@ -87,6 +92,7 @@ class Node:
     path: tuple[str, ...]
     count: int = 0
     children: list["Node"] = field(default_factory=list)
+    tracks: list[Track] = field(default_factory=list)   # set on the deepest groups
 
 
 def _sort_key(label: str, newest_first: bool):
@@ -97,7 +103,16 @@ def _sort_key(label: str, newest_first: bool):
     return (unknown, label.casefold())
 
 
-def build_tree(tracks: list[Track], arrangement: str) -> list[Node]:
+def _labels(level: Level, t: Track, memberships: Memberships | None) -> list[str]:
+    if level is _playlist and memberships is not None:
+        names = memberships.get(t.id or -1)
+        if names:
+            return names
+    return [level(t)]
+
+
+def build_tree(tracks: list[Track], arrangement: str,
+               memberships: Memberships | None = None) -> list[Node]:
     arr = ARRANGEMENTS[arrangement]
 
     def build(subset: list[Track], depth: int, prefix: tuple[str, ...]) -> list[Node]:
@@ -105,20 +120,23 @@ def build_tree(tracks: list[Track], arrangement: str) -> list[Node]:
             return []
         groups: dict[str, list[Track]] = {}
         for t in subset:
-            groups.setdefault(arr.levels[depth](t), []).append(t)
+            for label in _labels(arr.levels[depth], t, memberships):
+                groups.setdefault(label, []).append(t)
         nodes = []
         for label in sorted(groups, key=lambda s: _sort_key(s, arr.newest_first)):
             path = (*prefix, label)
             children = build(groups[label], depth + 1, path)
-            nodes.append(Node(label, path, len(groups[label]), children))
+            nodes.append(Node(label, path, len(groups[label]), children,
+                              [] if children else groups[label]))
         return nodes
 
     return build(tracks, 0, ())
 
 
-def matcher(arrangement: str, path: tuple[str, ...]) -> Callable[[Track], bool] | None:
+def matcher(arrangement: str, path: tuple[str, ...],
+            memberships: Memberships | None = None) -> Callable[[Track], bool] | None:
     """Predicate for tracks under ``path``; None means everything."""
     if not path:
         return None
     levels = ARRANGEMENTS[arrangement].levels[:len(path)]
-    return lambda t: all(level(t) == want for level, want in zip(levels, path))
+    return lambda t: all(want in _labels(level, t, memberships) for level, want in zip(levels, path))

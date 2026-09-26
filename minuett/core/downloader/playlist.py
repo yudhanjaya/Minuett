@@ -29,7 +29,7 @@ from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlparse
 
 from minuett.core.library.db import (
-    DONE, FAILED, LIVE, NEW, REMOVED, UNAVAILABLE, Entry, LibraryDB,
+    DONE, EXCLUDED, FAILED, LIVE, LOCAL_PREFIX, NEW, REMOVED, UNAVAILABLE, Entry, LibraryDB,
 )
 
 # Flat extraction reports these titles for entries you can't download.
@@ -99,6 +99,7 @@ class SyncPlan:
     unavailable: int = 0
     live: int = 0            # live streams, which are skipped
     removed: int = 0
+    excluded: int = 0        # songs you removed; not brought back
     renamed_from: str | None = None
     truncated: bool = False
 
@@ -221,6 +222,9 @@ def reconcile(db: LibraryDB, playlist_id: int, listing: Listing) -> SyncPlan:
             duration_ms=round(remote.duration * 1000) if remote.duration else None,
             isrc=remote.isrc, source_url=remote.url)
 
+        if entry.status == EXCLUDED:   # you removed it: leave it out
+            plan.excluded += 1
+            continue
         track = db.get(entry.track_id) if entry.track_id else None
         if track is not None:
             if entry.status != DONE:
@@ -247,9 +251,16 @@ def reconcile(db: LibraryDB, playlist_id: int, listing: Listing) -> SyncPlan:
         plan.to_download.append(entry)
 
     for key, entry in before.items():
+        if (key or "").startswith(LOCAL_PREFIX):
+            continue   # songs you added aren't in the source's list, by design
         if key not in seen and entry.position is not None:
             db.set_entry(entry.id, position=None, status=REMOVED)
             plan.removed += 1
+    # Songs you added follow the source's songs, in the order you had them.
+    local = sorted((e for e in before.values() if (e.item_id or "").startswith(LOCAL_PREFIX)
+                    and e.position is not None), key=lambda e: e.position)
+    for i, e in enumerate(local):
+        db.set_entry(e.id, position=len(listing.entries) + i)
     db.commit()
     db.touch_playlist(playlist_id, "last_checked")
     # Re-read so callers see fresh positions/titles.

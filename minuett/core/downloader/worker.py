@@ -238,7 +238,13 @@ class Downloader:
     def folder(self) -> Path:
         pl = self.db.get_playlist(self.playlist_id)
         assert pl is not None
-        return Path(pl.folder) if pl.folder else self.prefs.music_root / safe_filename(pl.name)
+        if pl.folder and Path(pl.folder).parent.is_dir():
+            return Path(pl.folder)
+        # No folder yet, or its parent was deleted: use the current download
+        # folder rather than recreating a location you removed.
+        folder = self.prefs.music_root / safe_filename(pl.name)
+        self.db.set_playlist_folder(self.playlist_id, str(folder))
+        return folder
 
     def run(self, jobs: list[Job], on_update: Callable[[int, Job], None]) -> None:
         folder = self.folder()

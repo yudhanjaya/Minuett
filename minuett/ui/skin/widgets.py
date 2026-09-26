@@ -48,7 +48,7 @@ class HaloOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._sources: "weakref.WeakSet[QWidget]" = weakref.WeakSet()
-        self._last: dict[int, QRect] = {}
+        self._last: dict[int, tuple] = {}   # id(src) -> (rect, state) last drawn
         host.installEventFilter(self)
         self.setGeometry(host.rect())
         self.raise_()
@@ -68,18 +68,24 @@ class HaloOverlay(QWidget):
         return self.mapFrom(win, src.mapTo(win, QPoint(0, 0)))
 
     def track(self, src: QWidget) -> None:
-        """A source repainted: refresh its halo (and erase where it was)."""
+        """A source repainted: refresh its halo (and erase where it was) if it
+        changed. Repainting the overlay makes Qt repaint whatever is beneath
+        it, including the source, so repainting unconditionally would loop."""
         self._sources.add(src)
         r = src.halo_rect().toAlignedRect()
         rect = QRect(self._origin(src) + r.topLeft(), r.size())
+        tm = manager().current
+        state = (rect.getRect(), src.halo_state(), tm.id if tm else None)
         old = self._last.get(id(src))
-        self._last[id(src)] = rect
-        self.update(rect.united(old) if old is not None else rect)
+        if old is not None and old[1] == state:
+            return
+        self._last[id(src)] = (rect, state)
+        self.update(rect.united(old[0]) if old is not None else rect)
 
     def forget(self, src: QWidget) -> None:
         old = self._last.pop(id(src), None)
         if old is not None:
-            self.update(old)
+            self.update(old[0])
 
     def paintEvent(self, event) -> None:
         p = QPainter(self)
@@ -104,6 +110,13 @@ class HaloMixin:
 
     def halo_rect(self) -> QRectF:  # local coordinates
         raise NotImplementedError
+
+    def halo_state(self) -> tuple:
+        """Everything the halo's look depends on (besides position and theme)."""
+        return (self.isEnabled(), self.underMouse(), getattr(self, "isDown", lambda: False)(),
+                getattr(self, "sliderPosition", lambda: 0)(),
+                getattr(self, "isSliderDown", lambda: False)(),
+                getattr(self, "minimum", lambda: 0)(), getattr(self, "maximum", lambda: 0)())
 
     def paint_halo(self, p: QPainter) -> None:
         raise NotImplementedError

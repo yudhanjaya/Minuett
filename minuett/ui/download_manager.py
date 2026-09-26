@@ -25,12 +25,14 @@ from minuett.core.downloader.playlist import (
 )
 from minuett.core.downloader.sources.files import listing_from_file
 from minuett.core.library.db import FAILED, NEW
+from minuett.core.library.folders import import_folder
 from minuett.core.downloader.worker import (
     Downloader, Job, JobStatus, Preferences, jobs_for, retry_failed,
 )
 from minuett.core.library.db import LibraryDB
 
-IMPORT, IMPORT_FILE, CHECK, UPDATE, RETRY = "import", "import-file", "check", "update", "retry"
+IMPORT, IMPORT_FILE, IMPORT_FOLDER, CHECK, UPDATE, RETRY = (
+    "import", "import-file", "import-folder", "check", "update", "retry")
 
 
 @dataclass
@@ -52,6 +54,7 @@ class OpResult:
     downloaded: int = 0
     failed: int = 0
     unavailable: int = 0
+    folder: object = None      # FolderImport, for folder imports/rescans
     cancelled: bool = False
     error: str | None = None
 
@@ -81,6 +84,17 @@ class _Worker(QObject):
         self.op_started.emit(op)
         result = OpResult(op.kind, op.playlist_id)
         try:
+            folder_path = op.path if op.kind == IMPORT_FOLDER else None
+            if op.kind in (UPDATE, CHECK) and op.playlist_id is not None:
+                pl = self.db.get_playlist(op.playlist_id)
+                if pl is not None and pl.is_folder:
+                    folder_path = pl.folder
+            if folder_path is not None:
+                # A folder playlist: scan it (no downloading involved).
+                result.folder = import_folder(self.db, folder_path)
+                result.playlist_id = result.folder.playlist_id
+                self.op_finished.emit(result)
+                return
             if op.kind == RETRY:
                 jobs = retry_failed(self.last_jobs)
                 result.playlist_id = self.last_playlist
@@ -183,6 +197,9 @@ class DownloadManager(QObject):
 
     def import_url(self, url: str) -> bool:
         return self.submit(Operation(IMPORT, url=url))
+
+    def import_folder(self, path: str) -> bool:
+        return self.submit(Operation(IMPORT_FOLDER, path=path))
 
     def import_file(self, path: str, source: str, name: str) -> bool:
         return self.submit(Operation(IMPORT_FILE, path=path, source=source, name=name))

@@ -6,11 +6,13 @@ transport widgets) is a dedicated later pass, per docs/PLAN.md.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from PySide6.QtCore import QObject, QSettings, QSize, QThread, QTimer, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMainWindow, QMessageBox, QSlider, QSplitter, QStackedWidget, QTableView,
+    QCheckBox, QInputDialog, QMainWindow, QMenu, QMessageBox, QSlider, QSplitter, QStackedWidget, QTableView,
     QVBoxLayout, QWidget, QAbstractItemView, QHeaderView,
 )
 
@@ -230,6 +232,8 @@ class MainWindow(QMainWindow):
         self.downloads.op_finished.connect(self._on_download_finished)
         self.playlists_view = PlaylistsView(self.db, self.downloads)
         self.playlists_view.play_tracks.connect(self.play_tracks)
+        self.playlists_view.import_folder_requested.connect(self.import_folder)
+        self.playlists_view.playlists_edited.connect(self._after_playlist_edit)
         self.playlists_view.show_downloads.connect(
             lambda: self.nav.setCurrentRow(NAV_ITEMS.index("Downloads")))
         self.downloads_view = DownloadsView(self.db, self.downloads)
@@ -313,6 +317,10 @@ class MainWindow(QMainWindow):
         self.timer.start()
 
         self._scan_thread: QThread | None = None
+        # A quick rescan at startup (unchanged files are skipped) drops songs
+        # whose files were deleted while Minuett was closed.
+        if self.folders():
+            QTimer.singleShot(1500, self.rescan)
         if self.library_model.rowCount() == 0 and not self.folders():
             self.statusBar().showMessage("Library is empty — use File ▸ Add Music Folder…")
             self.library_model.rowsInserted.connect(self._clear_empty_hint)
@@ -338,10 +346,9 @@ class MainWindow(QMainWindow):
         table.setSortingEnabled(True)
         table.sortByColumn(-1, Qt.SortOrder.AscendingOrder)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        # Double-click edits a tag cell inline (F2 too); double-clicking a
-        # read-only column (Time, Format…) or pressing Enter plays.
-        table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked
-                              | QAbstractItemView.EditTrigger.EditKeyPressed)
+        # Double-click or Enter plays (or pauses the song that's playing);
+        # F2 edits the cell, Ctrl+E opens the tag editor.
+        table.setEditTriggers(QAbstractItemView.EditTrigger.EditKeyPressed)
         tune_item_view(table)
         table.setAlternatingRowColors(True)
         table.setShowGrid(False)
@@ -350,13 +357,16 @@ class MainWindow(QMainWindow):
         for col, width in ((0, 48), (1, 300), (2, 190), (3, 190), (4, 130), (5, 110), (6, 64)):
             table.setColumnWidth(col, width)
         table.doubleClicked.connect(self._on_table_double_click)
-        table.play_requested.connect(self._play_from_table)
-        table.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
-        play_act = QAction("Play", table, triggered=lambda: self._play_from_table(table.currentIndex()))
+        table.play_requested.connect(self._on_table_double_click)
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
+        table.customContextMenuRequested.connect(self._on_table_menu)
         edit_act = QAction("Edit Tags…", table, shortcut=QKeySequence("Ctrl+E"),
                            triggered=self.edit_selected_tags)
         edit_act.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
-        table.addActions([play_act, edit_act])
+        delete_act = QAction("Delete…", table, shortcut=QKeySequence(QKeySequence.StandardKey.Delete),
+                             triggered=lambda: self.delete_tracks([t.id for t in self.selected_tracks()]))
+        delete_act.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        table.addActions([edit_act, delete_act])
         self.edit_tags_action = edit_act
         self.table = table
 
@@ -366,14 +376,17 @@ class MainWindow(QMainWindow):
 
         self.browse = BrowseTree(self.settings)
         self.browse.filter_changed.connect(self.proxy.set_node_filter)
-        self.browse.set_tracks(self.library_model.tracks)
+        self.browse.track_selected.connect(self._select_track_row)
+        self.browse.track_activated.connect(self.activate_track)
+        self.browse.track_menu.connect(self.show_track_menu)
+        self.browse.set_tracks(self.library_model.tracks, self.db.memberships())
         self.proxy.set_node_filter(self.browse.filter_for_current())
         for sig in (self.library_model.rowsInserted, self.library_model.rowsRemoved,
                     self.library_model.modelReset, self.library_model.dataChanged):
             sig.connect(self._schedule_browse_rebuild)
         self._browse_timer = QTimer(self, singleShot=True, interval=150)
         self._browse_timer.timeout.connect(
-            lambda: self.browse.set_tracks(self.library_model.tracks))
+            lambda: self.browse.set_tracks(self.library_model.tracks, self.db.memberships()))
 
         self.library_header = ViewHeader("My Library")
         self.library_header.add(self.search)
@@ -388,7 +401,7 @@ class MainWindow(QMainWindow):
         split.addWidget(table)
         split.setStretchFactor(1, 1)
         split.setCollapsible(1, False)
-        split.setSizes([230, 700])
+        split.setSizes([290, 700])
         return view(self.library_header, split)
 
     def _update_library_subtitle(self, *_) -> None:
@@ -412,7 +425,9 @@ class MainWindow(QMainWindow):
                                                self.playlists_view.import_playlist()))
         prefs = QAction("&Preferences…", self, shortcut=QKeySequence.StandardKey.Preferences,
                         triggered=lambda: PreferencesDialog(self.settings, self).exec())
-        for a in (import_pl, add, rescan):
+        import_dir = QAction("Import &Folder as Playlist…", self, shortcut=QKeySequence("Ctrl+Shift+I"),
+                             triggered=self.import_folder)
+        for a in (import_pl, import_dir, add, rescan):
             file_menu.addAction(a)
         file_menu.addSeparator()
         file_menu.addAction(prefs)
@@ -510,9 +525,160 @@ class MainWindow(QMainWindow):
             msg += f", {len(result.errors)} errors"
         self.statusBar().showMessage(msg, 10000)
 
+    # --- playing, pausing and the track menu -------------------------------
+
     def _on_table_double_click(self, proxy_index) -> None:
-        if COLUMNS[proxy_index.column()][0] not in EDITABLE_ATTRS:
-            self._play_from_table(proxy_index)
+        track = proxy_index.data(LibraryModel.TrackRole) if proxy_index.isValid() else None
+        if track is not None:
+            self.activate_track(track.id)
+
+    def _is_current(self, track_id: int) -> bool:
+        item = self.player.current
+        return (item is not None and item.track_id == track_id
+                and self.player.state in (State.PLAYING, State.PAUSED))
+
+    def activate_track(self, track_id: int) -> None:
+        """Play a song; if it's the one already playing, pause or resume it."""
+        if self._is_current(track_id):
+            self.player.toggle()
+            return
+        row = self._proxy_row_of(track_id)
+        if row is not None:
+            self._play_from_table(self.proxy.index(row, 0))
+        else:
+            t = self.db.get(track_id)
+            if t:
+                self.play_tracks([t])
+
+    def _proxy_row_of(self, track_id: int) -> int | None:
+        for r in range(self.proxy.rowCount()):
+            t = self.proxy.index(r, 0).data(LibraryModel.TrackRole)
+            if t is not None and t.id == track_id:
+                return r
+        return None
+
+    def _select_track_row(self, track_id: int) -> None:
+        row = self._proxy_row_of(track_id)
+        if row is not None:
+            self.table.selectRow(row)
+            self.table.scrollTo(self.proxy.index(row, 0))
+
+    def _on_table_menu(self, pos) -> None:
+        index = self.table.indexAt(pos)
+        if not index.isValid():
+            return
+        clicked = index.data(LibraryModel.TrackRole)
+        ids = [t.id for t in self.selected_tracks()]
+        if clicked.id not in ids:
+            self.table.selectRow(index.row())
+            ids = [clicked.id]
+        self.show_track_menu(ids, self.table.viewport().mapToGlobal(pos))
+
+    def show_track_menu(self, track_ids: list[int], global_pos) -> None:
+        menu = QMenu(self)
+        first = track_ids[0]
+        if len(track_ids) == 1 and self._is_current(first):
+            playing = self.player.state is State.PLAYING
+            menu.addAction("Pause" if playing else "Resume", self.player.toggle)
+        else:
+            menu.addAction("Play", lambda: self._play_ids(track_ids))
+        if self.player.state is State.PLAYING and not (len(track_ids) == 1 and self._is_current(first)):
+            menu.addAction("Pause", self.player.pause)
+        menu.addSeparator()
+        menu.addAction(self.edit_tags_action)
+
+        add = menu.addMenu("Add to Playlist")
+        for pl in self.db.playlists():
+            add.addAction(pl.name, lambda _=False, pid=pl.id: self.add_to_playlist(pid, track_ids))
+        if self.db.playlists():
+            add.addSeparator()
+        add.addAction("New Playlist…", lambda: self.add_to_new_playlist(track_ids))
+
+        scope = self.browse.playlist_scope()
+        pl = self.db.playlist_by_name(scope) if scope else None
+        if pl is not None and any(pl.id in self.db.playlists_containing(t) for t in track_ids):
+            menu.addAction(f"Remove from “{pl.name}”",
+                           lambda: self.remove_from_playlist(pl.id, track_ids))
+        menu.addSeparator()
+        n = len(track_ids)
+        menu.addAction(f"Delete {n} Songs…" if n > 1 else "Delete…",
+                       lambda: self.delete_tracks(track_ids))
+        menu.exec(global_pos)
+
+    def _play_ids(self, track_ids: list[int]) -> None:
+        if len(track_ids) == 1:
+            self.activate_track(track_ids[0])
+            return
+        tracks = [t for t in (self.db.get(i) for i in track_ids) if t]
+        if tracks:
+            self.play_tracks(tracks)
+
+    def add_to_playlist(self, playlist_id: int, track_ids: list[int]) -> None:
+        added = self.db.add_to_playlist(playlist_id, track_ids)
+        pl = self.db.get_playlist(playlist_id)
+        name = pl.name if pl else "playlist"
+        note = ""
+        if pl is not None and pl.is_imported and not pl.is_folder:
+            note = " (only here: the playlist on YouTube/Spotify isn't changed)"
+        skipped = len(track_ids) - added
+        msg = f"Added {added} song{'s' if added != 1 else ''} to “{name}”{note}"
+        if skipped:
+            msg += f"; {skipped} already there"
+        self.statusBar().showMessage(msg, 8000)
+        self._after_playlist_edit()
+
+    def add_to_new_playlist(self, track_ids: list[int]) -> None:
+        name, ok = QInputDialog.getText(self, "New Playlist", "Playlist name:")
+        if ok and name.strip():
+            self.add_to_playlist(self.db.create_playlist(name.strip()), track_ids)
+
+    def remove_from_playlist(self, playlist_id: int, track_ids: list[int]) -> None:
+        self.db.remove_from_playlist(playlist_id, track_ids)
+        pl = self.db.get_playlist(playlist_id)
+        self.statusBar().showMessage(
+            f"Removed from “{pl.name if pl else 'playlist'}”; updates won't bring "
+            f"{'them' if len(track_ids) > 1 else 'it'} back", 8000)
+        self._after_playlist_edit()
+
+    def _after_playlist_edit(self) -> None:
+        self.library_model.sync()
+        self._schedule_browse_rebuild()
+        self.playlists_view.refresh()
+
+    def delete_tracks(self, track_ids: list[int]) -> None:
+        tracks = [t for t in (self.db.get(i) for i in track_ids) if t]
+        if not tracks:
+            return
+        n = len(tracks)
+        what = f"“{tracks[0].title or tracks[0].path}”" if n == 1 else f"{n} songs"
+        box = QMessageBox(QMessageBox.Icon.Question, "Delete",
+                          f"Remove {what} from your library and playlists?", parent=self)
+        box.setInformativeText("Playlist updates won't download them again. "
+                               "Playlists on YouTube or Spotify aren't changed.")
+        trash = QCheckBox("Also move the file" + ("s" if n > 1 else "") + " to the Trash")
+        box.setCheckBox(trash)
+        box.setStandardButtons(QMessageBox.StandardButton.Cancel)
+        delete = box.addButton("Delete", QMessageBox.ButtonRole.DestructiveRole)
+        box.exec()
+        if box.clickedButton() is not delete:
+            return
+        item = self.player.current
+        if item is not None and item.track_id in track_ids:
+            self.player.stop()
+        paths = self.db.delete_tracks([t.id for t in tracks])
+        failed = {}
+        if trash.isChecked():
+            from minuett.core.library.trash import move_to_trash
+            failed = move_to_trash(paths)
+        self._after_playlist_edit()
+        if failed:
+            QMessageBox.warning(self, "Delete", "Removed from the library, but couldn't move "
+                                f"{len(failed)} file(s) to the Trash:\n\n"
+                                + "\n".join(f"• {p}: {e}" for p, e in list(failed.items())[:8]))
+        else:
+            self.statusBar().showMessage(
+                f"Deleted {n} song{'s' if n != 1 else ''}"
+                + (" and moved the files to the Trash" if trash.isChecked() else ""), 8000)
 
     def selected_tracks(self) -> list[Track]:
         rows = self.table.selectionModel().selectedRows()
@@ -598,8 +764,33 @@ class MainWindow(QMainWindow):
         if job.status.value == "done":
             self.library_model.sync()
 
+    def import_folder(self, path: str | None = None) -> None:
+        """Scan a folder into the library as a playlist named after the folder."""
+        if not path:
+            path = QFileDialog.getExistingDirectory(self, "Import Folder as Playlist",
+                                                    str(Path.home() / "Music"))
+        if not path:
+            return
+        folders = self.folders()
+        if path not in folders:   # keep it in rescans (F5) too
+            self.settings.setValue("library/folders", folders + [path])
+        self.downloads.import_folder(path)
+        self.statusBar().showMessage(f"Importing {Path(path).name}…")
+
     def _on_download_finished(self, r: OpResult) -> None:
         self.library_model.sync()
+        self._schedule_browse_rebuild()
+        if r.folder is not None:
+            f = r.folder
+            parts = [f"{f.total} song{'s' if f.total != 1 else ''}"]
+            if f.added:
+                parts.append(f"{f.added} new")
+            if f.removed:
+                parts.append(f"{f.removed} no longer in the folder")
+            if f.errors:
+                parts.append(f"{f.errors} unreadable")
+            self.statusBar().showMessage(f"Playlist “{f.name}”: " + ", ".join(parts), 10000)
+            return
         if r.error:
             self.statusBar().showMessage(f"Playlist error: {r.error}", 10000)
         elif r.plan is not None and r.kind == "check":

@@ -67,6 +67,12 @@ def scan(
 
     for root in roots:
         root = Path(root).expanduser().resolve()
+        if not root.is_dir():
+            # A folder you deleted (its parent is still there): its tracks go.
+            # A missing parent looks like an unplugged drive: keep them.
+            if root.parent.is_dir():
+                root_prefixes.append(str(root) + os.sep)
+            continue
         root_prefixes.append(str(root) + os.sep)
         for i, path in enumerate(iter_audio_files(root)):
             if should_stop and should_stop():

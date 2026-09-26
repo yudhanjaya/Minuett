@@ -114,18 +114,66 @@ def store_cookie_file(source: Path, dest: Path | None = None) -> Path:
     return dest
 
 
-def installed_browsers(home: Path | None = None) -> list[tuple[str, str, str]]:
-    """(key, label, profile dir) for each browser with a profile on disk."""
+CHROMIUM_FAMILY = {"chrome", "chromium", "brave", "edge", "vivaldi", "opera"}
+
+
+@dataclass
+class BrowserInfo:
+    key: str
+    label: str
+    profile: str          # what yt-dlp is pointed at
+    visible: bool         # can we read it from here (matters inside the Flatpak)
+    grant: str            # the narrowest directory the Flatpak needs to read
+
+    @property
+    def variant(self) -> str:
+        return "Flatpak" if "/.var/app/" in self.grant else "Snap" if "/snap/" in self.grant else ""
+
+
+def _cookie_dir(key: str, profile_dir: Path) -> Path:
+    """Chromium keeps cookies in <profile>/Default/Network; that folder is all
+    yt-dlp needs on Linux (the key comes from the keyring), so it's all we ask
+    the Flatpak to expose. Firefox keeps them in its profiles folder."""
+    return profile_dir / "Default" / "Network" if key in CHROMIUM_FAMILY else profile_dir
+
+
+def installed_browsers(home: Path | None = None, sandboxed: bool | None = None) -> list[BrowserInfo]:
+    """Supported browsers with a readable profile.
+
+    Inside the Flatpak the profiles aren't visible until the user grants
+    access, so there every supported browser is listed (not visible) with the
+    folder to grant; after granting, the narrow cookie folder is detected.
+    """
     home = home or Path.home()
-    found = []
+    sandboxed = in_flatpak() if sandboxed is None else sandboxed
+    found: list[BrowserInfo] = []
     for key, (label, dirs) in BROWSERS.items():
+        hit = None
         for d in dirs:
-            p = home / d
-            if p.is_dir():
-                where = " (Flatpak)" if "/.var/app/" in str(p) else " (Snap)" if "/snap/" in str(p) else ""
-                found.append((key, label + where, str(p)))
+            base = home / d
+            cookies = _cookie_dir(key, base)
+            if cookies.is_dir():            # granted narrowly (or a normal install)
+                hit = BrowserInfo(key, label, str(cookies if sandboxed else base), True, str(cookies))
                 break
+            if base.is_dir():
+                hit = BrowserInfo(key, label, str(base), True, str(cookies))
+                break
+        if hit:
+            if hit.variant:
+                hit.label += f" ({hit.variant})"
+            found.append(hit)
+        elif sandboxed:
+            # Not visible from inside the sandbox yet: offer it with the standard location.
+            std = home / dirs[0]
+            found.append(BrowserInfo(key, label, str(_cookie_dir(key, std)), False,
+                                     str(_cookie_dir(key, std))))
     return found
+
+
+def other_install_grants(key: str, home: Path | None = None) -> list[str]:
+    """Cookie folders for a browser's Flatpak/Snap installs (for the hint)."""
+    home = home or Path.home()
+    return [str(_cookie_dir(key, home / d)) for d in BROWSERS[key][1][1:]]
 
 
 def ytdlp_cookie_options(acct: YouTubeAccount) -> dict:
@@ -143,11 +191,11 @@ def in_flatpak() -> bool:
     return Path("/.flatpak-info").exists()
 
 
-def flatpak_override_hint(profile_dir: str, app_id: str = "io.github.yudhanjaya.Antiphon") -> str:
-    """The command that lets the Flatpak read a browser's profile (and, for
-    Chromium-based browsers, the keyring holding its cookie key)."""
+def flatpak_override_hint(grant_dir: str, app_id: str = "io.github.yudhanjaya.Antiphon") -> str:
+    """The command that lets the Flatpak read a browser's cookie folder (read-
+    only) and the keyring holding Chromium browsers' cookie key."""
     home = str(Path.home())
-    rel = profile_dir.replace(home, "~", 1)
+    rel = grant_dir.replace(home, "~", 1)
     return (f"flatpak override --user --filesystem={rel}:ro "
             f"--talk-name=org.freedesktop.secrets {app_id}")
 

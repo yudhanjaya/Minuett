@@ -66,15 +66,29 @@ def test_base_options_carry_the_sign_in(monkeypatch, tmp_path):
 def test_installed_browsers_finds_standard_and_flatpak(tmp_path):
     (tmp_path / ".config/BraveSoftware/Brave-Browser").mkdir(parents=True)
     (tmp_path / ".var/app/org.mozilla.firefox/.mozilla/firefox").mkdir(parents=True)
-    found = {k: (label, path) for k, label, path in installed_browsers(tmp_path)}
-    assert found["brave"][0] == "Brave"
-    assert found["firefox"][0] == "Firefox (Flatpak)" and "/.var/app/" in found["firefox"][1]
-    assert "chrome" not in found
+    found = {b.key: b for b in installed_browsers(tmp_path, sandboxed=False)}
+    assert found["brave"].label == "Brave" and found["brave"].visible
+    assert found["brave"].grant.endswith("Brave-Browser/Default/Network")
+    assert found["firefox"].label == "Firefox (Flatpak)"
+    assert "chrome" not in found   # outside the sandbox, only what's installed
+
+
+def test_sandbox_lists_every_browser_until_granted(tmp_path):
+    found = {b.key: b for b in installed_browsers(tmp_path, sandboxed=True)}
+    assert set(found) == set(accounts.BROWSERS) and not any(b.visible for b in found.values())
+    assert found["brave"].grant == str(tmp_path / ".config/BraveSoftware/Brave-Browser/Default/Network")
+    # After the user grants just the cookie folder, it's detected and used as the profile.
+    (tmp_path / ".config/BraveSoftware/Brave-Browser/Default/Network").mkdir(parents=True)
+    brave = {b.key: b for b in installed_browsers(tmp_path, sandboxed=True)}["brave"]
+    assert brave.visible and brave.profile == brave.grant
+    assert accounts.other_install_grants("brave", tmp_path) == [
+        str(tmp_path / ".var/app/com.brave.Browser/config/BraveSoftware/Brave-Browser/Default/Network")]
 
 
 def test_flatpak_override_hint():
-    hint = accounts.flatpak_override_hint(str(Path.home() / ".config/BraveSoftware/Brave-Browser"))
-    assert hint.startswith("flatpak override --user --filesystem=~/.config/BraveSoftware/Brave-Browser:ro")
+    hint = accounts.flatpak_override_hint(str(Path.home() / ".config/BraveSoftware/Brave-Browser/Default/Network"))
+    assert hint.startswith("flatpak override --user --filesystem="
+                           "~/.config/BraveSoftware/Brave-Browser/Default/Network:ro")
     assert "org.freedesktop.secrets" in hint
 
 

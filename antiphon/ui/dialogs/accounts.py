@@ -77,8 +77,8 @@ class YouTubeSignInDialog(QDialog):
 
         self.browsers = accounts.installed_browsers()
         self.browser_box = QComboBox()
-        for key, text, profile in self.browsers:
-            self.browser_box.addItem(text, (key, profile))
+        for b in self.browsers:
+            self.browser_box.addItem(b.label if b.visible else f"{b.label} (needs permission)", b)
         if not self.browsers:
             self.browser_box.addItem("No supported browser found", None)
             self.browser_box.setEnabled(False)
@@ -162,8 +162,8 @@ class YouTubeSignInDialog(QDialog):
         else:
             self.use_browser.setChecked(True)
             for i in range(self.browser_box.count()):
-                data = self.browser_box.itemData(i)
-                if data and data[0] == yt.browser:
+                b = self.browser_box.itemData(i)
+                if b and b.key == yt.browser:
                     self.browser_box.setCurrentIndex(i)
         self._update()
 
@@ -183,32 +183,40 @@ class YouTubeSignInDialog(QDialog):
             yt.method = "file"
             yt.cookie_file = str(self._file_source) if self._file_source else self.accts.youtube.cookie_file
         else:
-            data = self.browser_box.currentData()
-            if data:
-                yt.method, yt.browser, yt.profile = "browser", data[0], data[1]
+            b = self.browser_box.currentData()
+            if b:
+                yt.method, yt.browser, yt.profile = "browser", b.key, b.profile
         return yt
 
     def _update(self, *_) -> None:
         browser = self.use_browser.isChecked()
         self._browser_box.setEnabled(browser)
         self._file_box.setEnabled(not browser)
-        data = self.browser_box.currentData()
-        show_fp = browser and accounts.in_flatpak() and bool(data)
+        b = self.browser_box.currentData()
+        show_fp = browser and b is not None and not b.visible
         if show_fp:
+            others = accounts.other_install_grants(b.key)
+            extra = ""
+            if others:
+                extra = ("\nIf your browser is a Flatpak or Snap, use its folder instead: "
+                         + ", ".join(o.replace(str(Path.home()), "~", 1) for o in others))
             self.flatpak_hint.setText(
-                "Antiphon is running as a Flatpak and can't see your browser's profile until you "
-                "allow it. Run this once in a terminal, then restart Antiphon:\n"
-                + accounts.flatpak_override_hint(data[1]))
+                "Antiphon runs as a Flatpak and can't read your browser's sign-in until you "
+                "allow it. This grants read-only access to the browser's cookie folder only "
+                "(not your history or passwords) and to the keyring. Run it once in a "
+                "terminal, then restart Antiphon:\n" + accounts.flatpak_override_hint(b.grant)
+                + extra)
         self.flatpak_hint.setVisible(show_fp)
         self.flatpak_copy.setVisible(show_fp)
+        self.browser_hint.setVisible(not show_fp)
         self.signout_btn.setVisible(self.accts.youtube.configured)
         self.check_btn.setEnabled(self._candidate().configured)
         self.save_btn.setEnabled(self._candidate().configured)
 
     def _copy_override(self) -> None:
-        data = self.browser_box.currentData()
-        if data:
-            QGuiApplication.clipboard().setText(accounts.flatpak_override_hint(data[1]))
+        b = self.browser_box.currentData()
+        if b:
+            QGuiApplication.clipboard().setText(accounts.flatpak_override_hint(b.grant))
 
     def _choose_file(self) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Choose cookies.txt", str(Path.home() / "Downloads"),

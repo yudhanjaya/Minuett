@@ -55,6 +55,7 @@ CREATE INDEX IF NOT EXISTS idx_entries_playlist ON playlist_entries(playlist_id,
 
 # playlist_entries.status values
 NEW, DONE, FAILED, UNAVAILABLE, REMOVED = "new", "done", "failed", "unavailable", "removed"
+LIVE = "live"  # a live stream in the playlist; never downloaded
 
 # Columns the tag layer owns; scanner upserts exactly these.
 TAG_FIELDS = (

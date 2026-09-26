@@ -10,6 +10,7 @@ about the playlist and works out the minimum to download:
 * entries whose video is already in the library, e.g. from another playlist,
   are linked to the existing track instead of downloaded twice;
 * deleted/private videos are marked unavailable;
+* live streams (24/7 "radio" streams and the like) are skipped;
 * entries that vanished from YouTube are marked removed. Their files stay in
   the library; they just drop out of the playlist's order;
 * everything else is "new" and goes into the download queue.
@@ -28,7 +29,7 @@ from dataclasses import dataclass, field
 from urllib.parse import parse_qs, urlparse
 
 from antiphon.core.library.db import (
-    DONE, FAILED, NEW, REMOVED, UNAVAILABLE, Entry, LibraryDB,
+    DONE, FAILED, LIVE, NEW, REMOVED, UNAVAILABLE, Entry, LibraryDB,
 )
 
 # Flat extraction reports these titles for entries you can't download.
@@ -47,6 +48,11 @@ class RemoteEntry:
     title: str | None
     uploader: str | None = None
     duration: float | None = None
+    live_status: str | None = None
+
+    @property
+    def is_live(self) -> bool:
+        return self.live_status in ("is_live", "is_upcoming", "post_live")
 
     @property
     def available(self) -> bool:
@@ -69,6 +75,7 @@ class SyncPlan:
     linked: int = 0          # already in library via another playlist
     kept: int = 0            # already downloaded for this playlist
     unavailable: int = 0
+    live: int = 0            # live streams, which are skipped
     removed: int = 0
     renamed_from: str | None = None
 
@@ -131,6 +138,7 @@ def listing_from_info(url: str, info: dict) -> Listing:
             title=e.get("title"),
             uploader=e.get("uploader") or e.get("channel"),
             duration=e.get("duration"),
+            live_status=e.get("live_status"),
         ))
     return Listing(
         url=normalise_url(url),
@@ -174,6 +182,10 @@ def reconcile(db: LibraryDB, playlist_id: int, listing: Listing) -> SyncPlan:
         if not remote.available:
             db.set_entry(entry.id, status=UNAVAILABLE, track_id=None)
             plan.unavailable += 1
+            continue
+        if remote.is_live:
+            db.set_entry(entry.id, status=LIVE, track_id=None, error=None)
+            plan.live += 1
             continue
         if entry.status not in (NEW, FAILED):
             db.set_entry(entry.id, status=NEW, track_id=None, error=None)

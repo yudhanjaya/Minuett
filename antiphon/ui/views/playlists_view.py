@@ -16,12 +16,15 @@ from PySide6.QtWidgets import (
     QPushButton, QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
-from antiphon.core.library.db import DONE, FAILED, NEW, REMOVED, UNAVAILABLE, LibraryDB, Playlist, Track
+from antiphon.core.library.db import (
+    DONE, FAILED, LIVE, NEW, REMOVED, UNAVAILABLE, LibraryDB, Playlist, Track,
+)
 from antiphon.ui.download_manager import DownloadManager, OpResult
 
 ENTRY_STATUS_TEXT = {
     DONE: "", NEW: "Not downloaded yet", FAILED: "Failed",
     UNAVAILABLE: "Unavailable on YouTube", REMOVED: "Removed from playlist",
+    LIVE: "Live stream (skipped)",
 }
 PL_COLS = ["Playlist", "Songs", "New", "Last checked", "Last updated", ""]
 
@@ -170,7 +173,7 @@ class PlaylistsView(QWidget):
             item.setText(1, (t.title if t else None) or e.title or e.youtube_id or "")
             item.setText(2, (t.artist if t else "") or "")
             status = ENTRY_STATUS_TEXT.get(e.status, e.status)
-            if e.status == FAILED and e.error:
+            if e.status in (FAILED, UNAVAILABLE) and e.error:
                 item.setToolTip(3, e.error)
             item.setText(3, status)
             item.setData(0, Qt.ItemDataRole.UserRole, e.track_id if e.position is not None else None)

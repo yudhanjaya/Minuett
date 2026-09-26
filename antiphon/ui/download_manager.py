@@ -43,6 +43,7 @@ class OpResult:
     plan: SyncPlan | None = None
     downloaded: int = 0
     failed: int = 0
+    unavailable: int = 0
     cancelled: bool = False
     error: str | None = None
 
@@ -91,6 +92,7 @@ class _Worker(QObject):
                 result.cancelled = self.downloader.cancelled
             result.downloaded = sum(j.status is JobStatus.DONE for j in jobs)
             result.failed = sum(j.status is JobStatus.FAILED for j in jobs)
+            result.unavailable = sum(j.status is JobStatus.UNAVAILABLE for j in jobs)
         except ListingError as e:
             result.error = str(e)
         except Exception as e:  # noqa: BLE001 - surface anything to the user

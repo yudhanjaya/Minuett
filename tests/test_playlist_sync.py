@@ -205,3 +205,85 @@ def test_cancel_stops_queue(tmp_path, db):
     dl.run(jobs, lambda i, j: None)
     assert all(j.status is JobStatus.CANCELLED for j in jobs)
     assert db.get_playlist(pid).pending == 2  # nothing marked failed
+
+
+# --- live streams, retries, unavailable videos --------------------------------
+
+from antiphon.core.downloader.worker import classify_error  # noqa: E402
+from antiphon.core.library.db import LIVE  # noqa: E402
+
+
+def test_live_streams_are_skipped_not_queued(db):
+    pid = new_playlist(db)
+    lst = listing(("a", "Song"), ("radio", "lofi radio 24/7"))
+    lst.entries[1].live_status = "is_live"
+    plan = reconcile(db, pid, lst)
+    assert [e.youtube_id for e in plan.to_download] == ["a"] and plan.live == 1
+    assert {e.youtube_id: e.status for e in db.entries(pid)}["radio"] == LIVE
+    assert db.get_playlist(pid).pending == 1
+
+
+def test_listing_reads_live_status():
+    info = {"_type": "playlist", "id": "PLx", "title": "T",
+            "entries": [{"id": "r", "title": "radio", "live_status": "is_live"}]}
+    assert listing_from_info(URL, info).entries[0].is_live
+
+
+@pytest.mark.parametrize("msg, kind", [
+    ("unable to download video data: HTTP Error 403: Forbidden", "retry"),
+    ("[youtube] abc: Video unavailable", "unavailable"),
+    ("[youtube] abc: Video unavailable. This content isn't available in your country", "unavailable"),
+    ("Postprocessing: something odd", "failed"),
+])
+def test_classify_error(msg, kind):
+    assert classify_error(msg) == kind
+
+
+def _downloader_with_script(db, tmp_path, script):
+    """A Downloader whose attempts return scripted results instead of hitting YouTube."""
+    pid = db.add_youtube_playlist("Mix", URL, "PLtest1234567", str(tmp_path / "Mix"))
+    plan = reconcile(db, pid, listing(("a", "A"), title="Mix"))
+    dl = Downloader(db, pid, Preferences(tmp_path, sleep_max=0))
+    dl.retry_delays = (0.0, 0.0)
+    calls = []
+
+    def fake_attempt(i, job, folder, on_update):
+        calls.append(1)
+        outcome, err = script[len(calls) - 1]
+        (tmp_path / "Mix").mkdir(exist_ok=True)
+        (tmp_path / "Mix" / f"A [{job.entry.youtube_id}].jpg").write_bytes(b"x")  # leftover
+        if outcome == "done":
+            job.status = JobStatus.DONE
+        return outcome, err
+
+    dl._attempt = fake_attempt
+    return dl, jobs_for(plan.to_download), calls, pid
+
+
+def test_403_is_retried_then_succeeds(db, tmp_path):
+    dl, jobs, calls, _ = _downloader_with_script(
+        db, tmp_path, [("error", "HTTP Error 403: Forbidden"), ("done", "")])
+    dl.run(jobs, lambda i, j: None)
+    assert len(calls) == 2 and jobs[0].status is JobStatus.DONE
+
+
+def test_403_gives_up_after_retries(db, tmp_path):
+    dl, jobs, calls, pid = _downloader_with_script(
+        db, tmp_path, [("error", "HTTP Error 403: Forbidden")] * 3)
+    dl.run(jobs, lambda i, j: None)
+    assert len(calls) == 3 and jobs[0].status is JobStatus.FAILED
+    assert db.entries(pid)[0].status == FAILED
+    assert not list((tmp_path / "Mix").glob("*[[]a[]].*"))  # leftovers cleaned up
+
+
+def test_unavailable_is_not_retried_or_counted_pending(db, tmp_path):
+    dl, jobs, calls, pid = _downloader_with_script(
+        db, tmp_path, [("error", "[youtube] a: Video unavailable")])
+    dl.run(jobs, lambda i, j: None)
+    assert len(calls) == 1 and jobs[0].status is JobStatus.UNAVAILABLE
+    assert db.entries(pid)[0].status == UNAVAILABLE and db.get_playlist(pid).pending == 0
+    retry_failed(jobs)
+    assert jobs[0].status is JobStatus.UNAVAILABLE  # Retry Failed leaves it alone
+    # ...but the next Update checks it again.
+    plan = reconcile(db, pid, listing(("a", "A"), title="Mix"))
+    assert [e.youtube_id for e in plan.to_download] == ["a"]

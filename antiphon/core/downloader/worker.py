@@ -19,7 +19,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Callable
 
-from antiphon.core.library.db import DONE, FAILED, Entry, LibraryDB
+from antiphon.core.library.db import DONE, FAILED, LIVE, UNAVAILABLE, Entry, LibraryDB
 from antiphon.core.library.scanner import scan_file
 from antiphon.core.library.tags import TagError, write_tags
 
@@ -37,6 +37,7 @@ class JobStatus(Enum):
     DONE = "done"
     SKIPPED = "skipped"
     FAILED = "failed"
+    UNAVAILABLE = "unavailable"   # YouTube refuses it here; no point retrying now
     CANCELLED = "cancelled"
 
 
@@ -63,6 +64,34 @@ class Preferences:
 
 class Cancelled(Exception):
     pass
+
+
+class LiveStream(Exception):
+    """The entry is (or became) a live stream, which can't be saved as a song."""
+
+
+LIVE_STATES = frozenset({"is_live", "is_upcoming", "post_live"})
+
+# Errors worth retrying with fresh stream URLs: YouTube intermittently
+# answers 403 on long downloads, and rate-limits or times out now and then.
+_RETRYABLE = ("HTTP Error 403", "HTTP Error 429", "HTTP Error 5", "timed out",
+              "Connection reset", "IncompleteRead", "Remote end closed")
+# Errors that mean YouTube won't serve this video to us at all.
+_UNAVAILABLE = ("Video unavailable", "This video is not available", "Private video",
+                "has been removed", "not available in your country",
+                "blocked it in your country", "members-only", "Join this channel",
+                "Sign in to confirm your age", "This video has been removed")
+UNAVAILABLE_MESSAGE = ("YouTube won't play this video here: it's blocked in your region, "
+                       "removed, private or restricted. Update will check it again.")
+
+
+def classify_error(message: str) -> str:
+    """'retry', 'unavailable' or 'failed'."""
+    if any(p in message for p in _UNAVAILABLE):
+        return "unavailable"
+    if any(p in message for p in _RETRYABLE):
+        return "retry"
+    return "failed"
 
 
 def youtube_url(entry: Entry) -> str:
@@ -93,6 +122,9 @@ def ytdlp_options(folder: Path, prefs: Preferences) -> dict:
         ],
         "retries": 5,
         "fragment_retries": 5,
+        # Fetch in 10 MiB ranges: YouTube tends to cut off (403) single long
+        # requests for hour-long mixes, but serves chunked ranges reliably.
+        "http_chunk_size": 10 * 1024 * 1024,
     }
     if prefs.sleep_max > 0:
         opts["sleep_interval"] = prefs.sleep_min
@@ -146,6 +178,7 @@ class Downloader:
         self.url_for = url_for
         self.extra_opts = extra_opts or {}
         self._cancel = threading.Event()
+        self.retry_delays: tuple[float, ...] = (5.0, 20.0)  # seconds; one retry per entry
 
     def cancel(self) -> None:
         self._cancel.set()
@@ -175,6 +208,32 @@ class Downloader:
             self.db.touch_playlist(self.playlist_id, "last_updated")
 
     def _run_one(self, i: int, job: Job, folder: Path, on_update) -> None:
+        attempts = len(self.retry_delays) + 1
+        for attempt in range(attempts):
+            outcome, error = self._attempt(i, job, folder, on_update)
+            if outcome in ("done", "cancelled", "live"):
+                break
+            self._cleanup_video_files(folder, job.entry.youtube_id)
+            kind = classify_error(error)
+            if kind == "retry" and attempt < attempts - 1:
+                job.status, job.error = JobStatus.QUEUED, f"Retrying: {error}"
+                on_update(i, job)
+                if self._cancel.wait(self.retry_delays[attempt]):
+                    job.status, job.error = JobStatus.CANCELLED, None
+                    break
+                continue
+            if kind == "unavailable":
+                job.status, job.error = JobStatus.UNAVAILABLE, UNAVAILABLE_MESSAGE
+                self.db.set_entry(job.entry.id, status=UNAVAILABLE, error=error)
+            else:
+                job.status, job.error = JobStatus.FAILED, error
+                self.db.set_entry(job.entry.id, status=FAILED, error=error)
+            self.db.commit()
+            break
+        on_update(i, job)
+
+    def _attempt(self, i: int, job: Job, folder: Path, on_update) -> tuple[str, str]:
+        """One download attempt: ('done'|'cancelled'|'live'|'error', message)."""
         import yt_dlp
 
         job.status, job.progress, job.error = JobStatus.DOWNLOADING, 0.0, None
@@ -201,7 +260,12 @@ class Downloader:
                 "progress_hooks": [progress_hook], "postprocessor_hooks": [pp_hook]}
         try:
             with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(self.url_for(job.entry), download=True)
+                # Resolve first, so a live stream is refused before we start
+                # recording something that never ends.
+                info = ydl.extract_info(self.url_for(job.entry), download=False)
+                if info.get("live_status") in LIVE_STATES or info.get("is_live"):
+                    raise LiveStream()
+                info = ydl.process_ie_result(info, download=True)
                 info = ydl.sanitize_info(info)
             path = _final_path(info)
             if path is None or not path.exists():
@@ -225,17 +289,30 @@ class Downloader:
             self.db.commit()
             job.track_id = track_id
             job.status = JobStatus.DONE
+            return "done", ""
+        except LiveStream:
+            job.status, job.error = JobStatus.SKIPPED, "Live stream: skipped"
+            self.db.set_entry(job.entry.id, status=LIVE, error=None)
+            self.db.commit()
+            return "live", ""
         except Exception as e:  # noqa: BLE001 - one bad video must not stop the queue
             if self.cancelled or isinstance(e, Cancelled) or isinstance(
                     getattr(e, "exc_info", [None, None])[1], Cancelled):
                 job.status = JobStatus.CANCELLED
-                self._cleanup_partials(folder)
-            else:
-                msg = str(e).removeprefix("ERROR: ").strip() or type(e).__name__
-                job.status, job.error = JobStatus.FAILED, msg
-                self.db.set_entry(job.entry.id, status=FAILED, error=msg)
-                self.db.commit()
-        on_update(i, job)
+                self._cleanup_video_files(folder, job.entry.youtube_id)
+                return "cancelled", ""
+            return "error", str(e).removeprefix("ERROR: ").strip() or type(e).__name__
+
+    @staticmethod
+    def _cleanup_video_files(folder: Path, video_id: str | None) -> None:
+        """Remove leftovers of one video: partial media, thumbnails, temp files."""
+        if not video_id:
+            return
+        for p in folder.glob(f"*[[]{video_id}[]].*"):
+            try:
+                p.unlink()
+            except OSError:
+                pass
 
     @staticmethod
     def _cleanup_partials(folder: Path) -> None:

@@ -18,6 +18,7 @@ STATUS_TEXT = {
     JobStatus.CONVERTING: "Converting", JobStatus.TAGGING: "Tagging",
     JobStatus.DONE: "Done", JobStatus.SKIPPED: "Skipped",
     JobStatus.FAILED: "Failed", JobStatus.CANCELLED: "Cancelled",
+    JobStatus.UNAVAILABLE: "Unavailable",
 }
 
 
@@ -148,6 +149,8 @@ class DownloadsView(QWidget):
             extra.append(f"{plan.linked} already in library")
         if plan.unavailable:
             extra.append(f"{plan.unavailable} unavailable")
+        if plan.live:
+            extra.append(f"{plan.live} live stream{'s' if plan.live != 1 else ''} skipped")
         if plan.removed:
             extra.append(f"{plan.removed} removed on YouTube")
         tail = f" ({', '.join(extra)})" if extra else ""
@@ -158,7 +161,8 @@ class DownloadsView(QWidget):
 
     def _on_job(self, i: int, job: Job) -> None:
         self.model.update_job(i, job)
-        done = sum(j.status in (JobStatus.DONE, JobStatus.FAILED) for j in self.model.jobs)
+        finished = (JobStatus.DONE, JobStatus.FAILED, JobStatus.UNAVAILABLE, JobStatus.SKIPPED)
+        done = sum(j.status in finished for j in self.model.jobs)
         self.heading.setText(f"Updating <b>{self._title}</b> — {done} of {len(self.model.jobs)}")
         if job.status is JobStatus.DOWNLOADING:
             self.table.scrollTo(self.model.index(i, 0))
@@ -177,4 +181,6 @@ class DownloadsView(QWidget):
             msg = f"<b>{self._title}</b>: downloaded {r.downloaded}"
             if r.failed:
                 msg += f", {r.failed} failed (hover a row for the reason)"
+            if r.unavailable:
+                msg += f", {r.unavailable} unavailable on YouTube"
             self.heading.setText(msg)

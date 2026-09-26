@@ -40,15 +40,66 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
       sliders, EQ faders and knobs, and an LCD-style display. Themes are CSS
       files: 11 built in (RealPlayer Classic plus ten VS Code favourites), and
       you can write your own. See [docs/THEMES.md](docs/THEMES.md).
-- [ ] Flatpak packaging
+- [x] Flatpak and AppImage packages (x86_64), each with a built-in
+      `--self-test`.
+
+## Installing
+
+Download from `dist/` (or build it yourself, below).
+
+**Flatpak** (needs the Flathub remote for the GNOME 50 runtime):
+
+```bash
+flatpak install --user Antiphon-0.1.0-x86_64.flatpak
+```
+
+The Flatpak can read and write `~/Music`. For music elsewhere, grant access:
+
+```bash
+flatpak override --user --filesystem=/path/to/music io.github.antiphon.Antiphon
+```
+
+**AppImage**: make it executable and run it. It bundles Python, GStreamer,
+ffmpeg and Deno, and needs glibc 2.39 or newer (Ubuntu 24.04, Fedora 40,
+Debian 13, or later).
+
+```bash
+chmod +x Antiphon-0.1.0-x86_64.AppImage
+```
+
+Either package can check itself: it decodes each audio format through the EQ
+and confirms yt-dlp can find ffmpeg and a JavaScript runtime.
+
+```bash
+flatpak run io.github.antiphon.Antiphon --self-test
+```
+
+## Building the packages
+
+```bash
+./packaging/flatpak/build.sh
+```
+
+```bash
+./packaging/appimage/build.sh
+```
+
+The Flatpak build needs `org.flatpak.Builder` and `org.gnome.Sdk//50` from
+Flathub. Python wheels are pinned in `packaging/flatpak/python-deps.json`;
+after changing dependencies, regenerate it with `python3 tools/gen_flatpak_deps.py`.
+The AppImage is assembled from the build machine's Python 3.12, PyGObject and
+GStreamer, so build it on the oldest distro you want to support.
 
 ## Running from source
 
 System packages (Debian/Ubuntu names):
 
 ```bash
-sudo apt install python3-gi gir1.2-gstreamer-1.0 gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav ffmpeg
+sudo apt install python3-gi gir1.2-gstreamer-1.0 gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav ffmpeg libxcb-cursor0
 ```
+
+`libxcb-cursor0` is needed by Qt 6.5+ on X11 and isn't installed by default
+on Ubuntu-based systems.
 
 YouTube downloads also need a JavaScript runtime that yt-dlp supports: Deno,
 Node.js, QuickJS or Bun. Antiphon uses whichever is installed (see
@@ -83,10 +134,14 @@ files with ffmpeg; player tests route audio to a `fakesink`.
 
 ```
 antiphon/
-  core/          # Qt-free: player, library, (downloader, equalizer)
-  ui/            # PySide6 window, views, dialogs, skin
+  core/          # Qt-free: player, library, downloader, equalizer
+  ui/            # PySide6 window, views, dialogs
+    skin/        # base.qss, painted widgets, themes/*.css
+  selftest.py    # antiphon --self-test
+packaging/       # desktop file, metainfo, icon, flatpak/, appimage/
+tools/           # packaging helpers
 tests/
-docs/PLAN.md
+docs/            # PLAN.md, THEMES.md
 ```
 
 ## Note on downloading

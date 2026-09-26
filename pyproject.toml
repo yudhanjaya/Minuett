@@ -9,7 +9,7 @@ description = "A RealPlayer-style Linux media player with a YouTube playlist dow
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "PySide6>=6.6",
+  "PySide6-Essentials>=6.6",  # QtCore/Gui/Widgets only; keeps bundles small
   "PyGObject>=3.46",
   "mutagen>=1.47",
   "watchdog>=4.0",

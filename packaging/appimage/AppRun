@@ -1,0 +1,25 @@
+#!/bin/sh
+# Antiphon AppImage entry point: bundled Python, GObject introspection,
+# GStreamer plugins, ffmpeg and Deno, isolated from the host's copies.
+HERE="$(dirname "$(readlink -f "$0")")"
+USR="$HERE/usr"
+
+export PYTHONHOME="$USR"
+export PYTHONPATH="$USR/lib/python3/dist-packages"
+export PYTHONNOUSERSITE=1
+export PYTHONDONTWRITEBYTECODE=1
+export LD_LIBRARY_PATH="$USR/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export GI_TYPELIB_PATH="$USR/lib/girepository-1.0"
+export GST_PLUGIN_SYSTEM_PATH_1_0="$USR/lib/gstreamer-1.0"
+export GST_PLUGIN_PATH_1_0="$USR/lib/gstreamer-1.0"
+export GST_PLUGIN_SCANNER_1_0="$USR/libexec/gst-plugin-scanner"
+# A registry per AppImage build, so plugins from different versions never mix.
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/antiphon"
+mkdir -p "$CACHE"
+export GST_REGISTRY_1_0="$CACHE/gst-registry-@BUILD_ID@.bin"
+# yt-dlp finds ffmpeg and Deno on PATH.
+export PATH="$USR/bin:$PATH"
+
+# -P: never import from the current directory (python -m would otherwise
+# prefer an "antiphon" folder there over the bundled package).
+exec "$USR/bin/python3.12" -s -P -m antiphon "$@"

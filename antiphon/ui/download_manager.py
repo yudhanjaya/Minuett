@@ -216,4 +216,7 @@ class DownloadManager(QObject):
 
 
 def default_music_root() -> Path:
-    return Path.home() / "Music" / "Antiphon"
+    """<the desktop's Music folder>/Antiphon (localised names like ~/Musik work too)."""
+    from PySide6.QtCore import QStandardPaths
+    music = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.MusicLocation)
+    return (Path(music) if music else Path.home() / "Music") / "Antiphon"

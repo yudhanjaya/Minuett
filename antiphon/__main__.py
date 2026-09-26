@@ -4,6 +4,10 @@ import sys
 
 
 def main() -> int:
+    if "--self-test" in sys.argv[1:]:
+        from antiphon.selftest import run
+        return run()
+
     from PySide6.QtWidgets import QApplication
 
     from PySide6.QtCore import QSettings

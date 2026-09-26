@@ -7,3 +7,4 @@ build/
 dist/
 .flatpak-builder/
 build-dir/
+build-repo/

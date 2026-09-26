@@ -145,8 +145,8 @@ on/off toggle, JSON presets (Flat, Rock, Vocal, Bass Boost, Treble Cut).
 
 ## Build order
 
-1. Playback and library scanner. ← **current**
-2. Metadata editing.
-3. Downloader.
+1. Playback and library scanner. ✓
+2. Metadata editing. ✓
+3. Downloader. ← **next**
 4. Equalizer.
 5. Skin pass, once functionality is stable.

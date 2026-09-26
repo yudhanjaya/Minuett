@@ -2,16 +2,22 @@
 
 ``mutagen.File(path, easy=True)`` gives a uniform dict-like interface for
 MP3 (EasyID3), M4A (EasyMP4), FLAC, Ogg Vorbis and Opus, which covers the
-text fields. Cover art is format-specific and lives in later phases.
+text fields. Cover art is format-specific and handled separately below.
 """
 
 from __future__ import annotations
 
+import base64
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import mutagen
+from mutagen.flac import FLAC, Picture
+from mutagen.id3 import APIC, ID3, ID3NoHeaderError, PictureType
+from mutagen.mp4 import MP4, MP4Cover
+from mutagen.oggopus import OggOpus
+from mutagen.oggvorbis import OggVorbis
 
 AUDIO_EXTENSIONS = frozenset({
     ".mp3", ".m4a", ".mp4", ".aac", ".opus", ".ogg", ".oga", ".flac", ".wav", ".wv",
@@ -130,4 +136,119 @@ def write_tags(path: str | Path, changes: dict[str, object]) -> None:
                 audio.tags[key] = [str(value)]
         audio.save()
     except mutagen.MutagenError as e:
+        raise TagError(f"{path}: {e}") from e
+
+
+# --- cover art ------------------------------------------------------------
+#
+# Cover art isn't in mutagen's "easy" interface, so each container needs its
+# own handling: ID3 APIC frames (MP3), the MP4 'covr' atom (M4A), FLAC
+# picture blocks, and base64 METADATA_BLOCK_PICTURE comments (Ogg/Opus).
+
+@dataclass
+class Cover:
+    data: bytes
+    mime: str
+
+
+def sniff_image_mime(data: bytes) -> str:
+    if data.startswith(b"\x89PNG"):
+        return "image/png"
+    if data.startswith(b"\xff\xd8"):
+        return "image/jpeg"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    raise TagError("cover must be a JPEG, PNG or WebP image")
+
+
+def _open_raw(path: str | Path) -> mutagen.FileType:
+    try:
+        audio = mutagen.File(str(path))
+    except mutagen.MutagenError as e:
+        raise TagError(f"{path}: {e}") from e
+    if audio is None:
+        raise TagError(f"{path}: unrecognised audio format")
+    return audio
+
+
+def _flac_picture(cover: Cover) -> Picture:
+    pic = Picture()
+    pic.type = PictureType.COVER_FRONT
+    pic.mime = cover.mime
+    pic.data = cover.data
+    return pic
+
+
+def read_cover(path: str | Path) -> Cover | None:
+    """Return the front cover (or first picture) embedded in the file."""
+    audio = _open_raw(path)
+    if isinstance(audio, MP4):
+        covers = (audio.tags or {}).get("covr") or []
+        if not covers:
+            return None
+        c = covers[0]
+        mime = "image/png" if c.imageformat == MP4Cover.FORMAT_PNG else "image/jpeg"
+        return Cover(bytes(c), mime)
+    if isinstance(audio, FLAC):
+        pics = audio.pictures
+    elif isinstance(audio, (OggVorbis, OggOpus)):
+        pics = []
+        for b64 in (audio.tags or {}).get("metadata_block_picture", []):
+            try:
+                pics.append(Picture(base64.b64decode(b64)))
+            except (ValueError, mutagen.MutagenError):
+                continue
+    elif audio.tags is not None and hasattr(audio.tags, "getall"):  # ID3
+        pics = audio.tags.getall("APIC")
+    else:
+        return None
+    if not pics:
+        return None
+    front = next((p for p in pics if p.type == PictureType.COVER_FRONT), pics[0])
+    return Cover(bytes(front.data), front.mime or sniff_image_mime(front.data))
+
+
+def write_cover(path: str | Path, cover: Cover | None) -> None:
+    """Replace all embedded pictures with ``cover``; ``None`` removes them."""
+    audio = _open_raw(path)
+    try:
+        if isinstance(audio, MP4):
+            if audio.tags is None:
+                audio.add_tags()
+            if cover is None:
+                audio.tags.pop("covr", None)
+            else:
+                if cover.mime not in ("image/jpeg", "image/png"):
+                    raise TagError("M4A covers must be JPEG or PNG")
+                fmt = MP4Cover.FORMAT_PNG if cover.mime == "image/png" else MP4Cover.FORMAT_JPEG
+                audio.tags["covr"] = [MP4Cover(cover.data, imageformat=fmt)]
+        elif isinstance(audio, FLAC):
+            audio.clear_pictures()
+            if cover is not None:
+                audio.add_picture(_flac_picture(cover))
+        elif isinstance(audio, (OggVorbis, OggOpus)):
+            if audio.tags is None:
+                audio.add_tags()
+            for key in ("metadata_block_picture", "coverart"):  # coverart: legacy
+                if key in audio.tags:
+                    del audio.tags[key]
+            if cover is not None:
+                block = base64.b64encode(_flac_picture(cover).write()).decode("ascii")
+                audio.tags["metadata_block_picture"] = [block]
+        else:
+            # MP3 and anything else ID3-based.
+            if audio.tags is None:
+                try:
+                    audio.add_tags()
+                except mutagen.MutagenError:
+                    pass
+            if not isinstance(audio.tags, ID3):
+                raise TagError(f"{path}: cover art not supported for this format")
+            audio.tags.delall("APIC")
+            if cover is not None:
+                audio.tags.add(APIC(encoding=3, mime=cover.mime,
+                                    type=PictureType.COVER_FRONT, desc="Cover",
+                                    data=cover.data))
+        audio.save()
+    except (mutagen.MutagenError, ID3NoHeaderError) as e:
         raise TagError(f"{path}: {e}") from e

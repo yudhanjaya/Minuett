@@ -10,7 +10,7 @@ from PySide6.QtCore import QObject, QSettings, QThread, QTimer, Qt, Signal
 from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-    QMainWindow, QSlider, QSplitter, QStackedWidget, QTableView,
+    QMainWindow, QMessageBox, QSlider, QSplitter, QStackedWidget, QTableView,
     QToolButton, QVBoxLayout, QWidget, QAbstractItemView, QHeaderView,
 )
 
@@ -18,7 +18,10 @@ from antiphon.core.library.db import LibraryDB, Track
 from antiphon.core.library.scanner import scan
 from antiphon.core.paths import library_db_path
 from antiphon.core.player import Player, QueueItem, State
-from .views.library_model import LibraryFilterProxy, LibraryModel, format_ms
+from .dialogs.tag_editor import TagEditorDialog
+from .views.library_model import (
+    COLUMNS, EDITABLE_ATTRS, LibraryFilterProxy, LibraryModel, format_ms,
+)
 
 NS_PER_MS = 1_000_000
 NAV_ITEMS = ["Now Playing", "My Library", "Playlists", "Downloads", "Equalizer"]
@@ -42,6 +45,20 @@ class ScanWorker(QObject):
         finally:
             db.close()
         self.finished.emit(result)
+
+
+class LibraryTable(QTableView):
+    """Enter plays the current row (unless an inline editor is open)."""
+
+    play_requested = Signal(object)  # proxy QModelIndex
+
+    def keyPressEvent(self, event) -> None:
+        if (event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter)
+                and self.state() != QAbstractItemView.State.EditingState
+                and self.currentIndex().isValid()):
+            self.play_requested.emit(self.currentIndex())
+            return
+        super().keyPressEvent(event)
 
 
 class TransportBar(QWidget):
@@ -202,12 +219,15 @@ class MainWindow(QMainWindow):
         self.search = QLineEdit(placeholderText="Search library…", clearButtonEnabled=True)
         self.search.textChanged.connect(self.proxy.set_search)
 
-        table = QTableView()
+        table = LibraryTable()
         table.setModel(self.proxy)
         table.setSortingEnabled(True)
         table.sortByColumn(-1, Qt.SortOrder.AscendingOrder)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        # Double-click edits a tag cell inline (F2 too); double-clicking a
+        # read-only column (Time, Format…) or pressing Enter plays.
+        table.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked
+                              | QAbstractItemView.EditTrigger.EditKeyPressed)
         table.verticalHeader().hide()
         table.verticalHeader().setDefaultSectionSize(22)
         table.setAlternatingRowColors(True)
@@ -215,8 +235,20 @@ class MainWindow(QMainWindow):
         table.horizontalHeader().setStretchLastSection(True)
         for col, width in ((0, 36), (1, 260), (2, 180), (3, 200), (4, 56)):
             table.setColumnWidth(col, width)
-        table.doubleClicked.connect(self._play_from_table)
+        table.doubleClicked.connect(self._on_table_double_click)
+        table.play_requested.connect(self._play_from_table)
+        table.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
+        play_act = QAction("Play", table, triggered=lambda: self._play_from_table(table.currentIndex()))
+        edit_act = QAction("Edit Tags…", table, shortcut=QKeySequence("Ctrl+E"),
+                           triggered=self.edit_selected_tags)
+        edit_act.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
+        table.addActions([play_act, edit_act])
+        self.edit_tags_action = edit_act
         self.table = table
+
+        self.library_model.edit_failed.connect(
+            lambda m: QMessageBox.warning(self, "Edit Tag", f"Couldn't write the file, nothing changed.\n\n{m}"))
+        self.library_model.tracks_edited.connect(self._on_tracks_edited)
 
         w = QWidget()
         layout = QVBoxLayout(w)
@@ -236,6 +268,9 @@ class MainWindow(QMainWindow):
             file_menu.addAction(a)
         file_menu.addSeparator()
         file_menu.addAction(quit_)
+
+        edit_menu = self.menuBar().addMenu("&Edit")
+        edit_menu.addAction(self.edit_tags_action)
 
         view_menu = self.menuBar().addMenu("&View")
         self.toggle_queue = QAction("Show &Queue Pane", self, checkable=True, checked=True,
@@ -298,6 +333,36 @@ class MainWindow(QMainWindow):
         if result.errors:
             msg += f", {len(result.errors)} errors"
         self.statusBar().showMessage(msg, 10000)
+
+    def _on_table_double_click(self, proxy_index) -> None:
+        if COLUMNS[proxy_index.column()][0] not in EDITABLE_ATTRS:
+            self._play_from_table(proxy_index)
+
+    def selected_tracks(self) -> list[Track]:
+        rows = self.table.selectionModel().selectedRows()
+        return [r.data(LibraryModel.TrackRole) for r in sorted(rows, key=lambda i: i.row())]
+
+    def edit_selected_tags(self) -> None:
+        tracks = self.selected_tracks()
+        if not tracks:
+            return
+        dlg = TagEditorDialog(self.db, tracks, self)
+        dlg.exec()
+        if dlg.result_ and dlg.result_.updated:
+            self.library_model.refresh_tracks(dlg.result_.updated)
+            self.statusBar().showMessage(f"Updated {len(dlg.result_.updated)} track(s)", 5000)
+
+    def _on_tracks_edited(self, ids: list[int]) -> None:
+        # Keep the queue pane and status line in step with edits.
+        for tid in ids:
+            if tid in self._track_cache:
+                fresh = self.db.get(tid)
+                if fresh:
+                    self._track_cache[tid] = fresh
+        self._refresh_queue()
+        item = self.player.current
+        if item and item.track_id in ids:
+            self._track_status(self._track_cache.get(item.track_id), item)
 
     def _play_from_table(self, proxy_index) -> None:
         # Queue everything currently visible, in view order, starting here.

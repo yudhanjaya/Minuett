@@ -8,7 +8,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
 
 ## Status
 
-**Phase 1 of 5: playback and library scanner.**
+**Phases 1–2 of 5 done: playback, library scanner, metadata editing.**
 
 - [x] GStreamer playbin wrapper: queue, gapless transitions, repeat, seek,
       volume, broken files skipped. Bus polled from a 50 ms `QTimer`.
@@ -17,7 +17,10 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
 - [x] Basic window: transport strip, nav rail, sortable/searchable library
       table, Now Playing queue pane, compact toolbar mode (Ctrl+T, Esc exits).
 - [ ] Arrange-by browse tree, folder watching (watchdog)
-- [ ] Phase 2: metadata editing (inline, batch, cover art)
+- [x] Phase 2: metadata editing. Double-click a tag cell (or F2) to edit it
+      inline; select rows and press Ctrl+E for the batch editor with cover art
+      (view, replace, remove). Files are written first and the database only
+      updates on success. Enter, or double-clicking a read-only column, plays.
 - [ ] Phase 3: playlist downloader (yt-dlp)
 - [ ] Phase 4: parametric equalizer
 - [ ] Phase 5: RealPlayer skin

@@ -193,3 +193,12 @@ class LibraryDB:
             "SELECT t.* FROM playlist_items p JOIN tracks t ON t.id = p.track_id "
             "WHERE p.playlist_id = ? ORDER BY p.position", (playlist_id,))
         return [Track.from_row(r) for r in rows]
+
+    def distinct(self, column: str) -> list[str]:
+        """Existing values of a text column, for editor autocompletion."""
+        if column not in TRACK_COLUMNS:
+            raise ValueError(column)
+        rows = self.conn.execute(
+            f"SELECT DISTINCT {column} FROM tracks WHERE {column} IS NOT NULL "
+            f"AND {column} != '' ORDER BY {column} COLLATE NOCASE")
+        return [str(r[0]) for r in rows]

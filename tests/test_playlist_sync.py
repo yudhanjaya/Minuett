@@ -1,4 +1,5 @@
 import sqlite3
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -157,8 +158,10 @@ def test_v1_database_migrates(tmp_path):
 def test_tags_from_info_prefers_youtube_music():
     info = {"title": "whatever", "track": "Song", "artists": ["A", "B"], "album": "LP",
             "release_year": 2019}
-    assert tags_from_info(info, None) == {"year": 2019, "title": "Song", "artist": "A, B", "album": "LP"}
-    assert tags_from_info({"title": "X - Y (Official Video)"}, None) == {"year": None, "artist": "X", "title": "Y"}
+    assert tags_from_info(info, None) == {"year": 2019, "title": "Song", "artist": "A, B",
+                                          "album": "LP", "genre": None}
+    assert tags_from_info({"title": "X - Y (Official Video)"}, None) == {
+        "year": None, "genre": None, "artist": "X", "title": "Y"}
 
 
 def test_downloader_end_to_end_local(tmp_path, tone, db):
@@ -287,3 +290,53 @@ def test_unavailable_is_not_retried_or_counted_pending(db, tmp_path):
     # ...but the next Update checks it again.
     plan = reconcile(db, pid, listing(("a", "A"), title="Mix"))
     assert [e.youtube_id for e in plan.to_download] == ["a"]
+
+
+# --- output format ------------------------------------------------------------
+
+from antiphon.core.downloader.worker import normalise_format, ytdlp_options  # noqa: E402
+
+
+def test_format_preferences():
+    assert normalise_format(None) == "opus"
+    assert normalise_format("native") == "original"   # old setting name
+    assert normalise_format("bogus") == "opus"
+    o = ytdlp_options(Path("/x"), Preferences(Path("/x"), audio_format="opus"))
+    assert o["format"].startswith("bestaudio[acodec=opus]")
+    pp = o["postprocessors"][0]
+    assert (pp["preferredcodec"], pp["preferredquality"]) == ("opus", "256")
+
+
+def _probe(path):
+    out = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "a:0", "-show_entries",
+                          "stream=codec_name,bit_rate:format=bit_rate", "-of", "json", str(path)],
+                         capture_output=True, text=True, check=True).stdout
+    import json
+    d = json.loads(out)
+    return d["streams"][0]["codec_name"], int(d["streams"][0].get("bit_rate") or d["format"]["bit_rate"])
+
+
+@pytest.mark.parametrize("src_codec, src_ext, expect_copy", [
+    (["-c:a", "libopus", "-b:a", "96k"], "webm", True),
+    (["-c:a", "aac", "-b:a", "128k"], "m4a", False),
+])
+def test_opus_default_copies_opus_and_converts_others_at_high_bitrate(
+        tmp_path, db, src_codec, src_ext, expect_copy):
+    import subprocess as sp
+    src = tmp_path / f"Artist - Song.{src_ext}"
+    sp.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "anoisesrc=d=4:c=pink",
+            *src_codec, str(src)], check=True)
+    pid = db.add_youtube_playlist("Mix", URL, "PLtest1234567", str(tmp_path / "out"))
+    plan = reconcile(db, pid, listing(("v", "Artist - Song"), title="Mix"))
+    dl = Downloader(db, pid, Preferences(tmp_path, sleep_max=0), url_for=lambda e: src.as_uri(),
+                    extra_opts={"enable_file_urls": True})
+    jobs = jobs_for(plan.to_download)
+    dl.run(jobs, lambda i, j: None)
+    assert jobs[0].status is JobStatus.DONE, jobs[0].error
+    out = Path(db.get(jobs[0].track_id).path)
+    codec, bitrate = _probe(out)
+    assert out.suffix == ".opus" and codec == "opus"
+    if expect_copy:
+        assert _probe(src)[1] * 0.8 < bitrate < _probe(src)[1] * 1.25   # untouched
+    else:
+        assert bitrate > 200_000   # converted at the high bitrate, not a default ~96k

@@ -57,7 +57,7 @@ class Job:
 @dataclass
 class Preferences:
     music_root: Path
-    audio_format: str = "native"   # "native" keeps Opus/M4A as-is; or "mp3"
+    audio_format: str = "opus"     # "opus", "original" (no conversion) or "mp3"
     sleep_min: float = 2.0
     sleep_max: float = 6.0
 
@@ -98,16 +98,39 @@ def youtube_url(entry: Entry) -> str:
     return f"https://www.youtube.com/watch?v={entry.youtube_id}"
 
 
+# Bitrate for converting a non-Opus source to Opus. YouTube's own Opus streams
+# are ~130-160 kbps and are copied untouched; 256 kbps keeps a second lossy
+# generation (e.g. AAC -> Opus) comfortably transparent.
+OPUS_TRANSCODE_KBPS = 256
+
+AUDIO_FORMATS = ("opus", "original", "mp3")
+
+
+def normalise_format(value: str | None) -> str:
+    """Map a stored preference (including the old "native") onto AUDIO_FORMATS."""
+    value = (value or "opus").lower()
+    value = {"native": "original", "best": "original"}.get(value, value)
+    return value if value in AUDIO_FORMATS else "opus"
+
+
 def ytdlp_options(folder: Path, prefs: Preferences) -> dict:
-    if prefs.audio_format == "mp3":
+    fmt = normalise_format(prefs.audio_format)
+    if fmt == "opus":
+        # Prefer an Opus stream so it can be copied without re-encoding; only
+        # when none exists is the best other stream converted at a high bitrate.
+        selector = "bestaudio[acodec=opus]/bestaudio/best"
+        extract = {"key": "FFmpegExtractAudio", "preferredcodec": "opus",
+                   "preferredquality": str(OPUS_TRANSCODE_KBPS)}
+    elif fmt == "mp3":
+        selector = "bestaudio/best"
         extract = {"key": "FFmpegExtractAudio", "preferredcodec": "mp3", "preferredquality": "0"}
     else:
-        # "best" copies the source stream (Opus in WebM -> .opus, AAC -> .m4a)
-        # instead of transcoding lossy to lossy.
+        # Keep whatever YouTube serves (Opus -> .opus, AAC -> .m4a), no conversion.
+        selector = "bestaudio/best"
         extract = {"key": "FFmpegExtractAudio", "preferredcodec": "best"}
     opts = {
         **base_options(),
-        "format": "bestaudio/best",
+        "format": selector,
         "noplaylist": True,
         "paths": {"home": str(folder)},
         # No playlist index in the name: order lives in the database and
@@ -136,7 +159,7 @@ def tags_from_info(info: dict, fallback_title: str | None) -> dict[str, object]:
     """Prefer YouTube Music's structured metadata; else parse the video title."""
     # yt-dlp's FFmpegMetadata writes the *upload* date; that's not a release
     # year, so clear it unless YouTube Music gave us a real one below.
-    tags: dict[str, object] = {"year": None}
+    tags: dict[str, object] = {"year": None, "genre": None}
     if info.get("track") and (info.get("artist") or info.get("artists")):
         artists = info.get("artists") or [info["artist"]]
         tags["title"] = info["track"]
@@ -151,6 +174,10 @@ def tags_from_info(info: dict, fallback_title: str | None) -> dict[str, object]:
         tags["title"] = parsed.title
         if parsed.artist:
             tags["artist"] = parsed.artist
+    # yt-dlp writes YouTube's video category ("Music") as the genre, which says
+    # nothing; use a genre tag from the title if there is one, else leave it empty.
+    tags["genre"] = (parse_title(info.get("title") or fallback_title or "").genre
+                     if not info.get("genre") or info.get("genre") == "Music" else info["genre"])
     return tags
 
 

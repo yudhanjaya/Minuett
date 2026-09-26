@@ -11,17 +11,18 @@ from PySide6.QtWidgets import (
 )
 
 from antiphon.core.downloader.playlist import js_runtimes
-from antiphon.core.downloader.worker import Preferences
+from antiphon.core.downloader.worker import Preferences, normalise_format
 from antiphon.ui.download_manager import default_music_root
 from antiphon.ui.skin.components import button, label, space
 
-FORMATS = [("native", "Original (Opus or M4A, no re-encoding)"),
-           ("mp3", "MP3 (for older devices; re-encodes)")]
+FORMATS = [("opus", "Opus, best quality (copies Opus streams; converts others at 256 kbps)"),
+           ("original", "Original (keep YouTube's format as-is: Opus or M4A)"),
+           ("mp3", "MP3 V0 (for older devices; always re-encodes)")]
 
 
 def load_preferences(settings: QSettings) -> Preferences:
     root = settings.value("downloads/root", str(default_music_root()), type=str)
-    fmt = settings.value("downloads/format", "native", type=str)
+    fmt = normalise_format(settings.value("downloads/format", "opus", type=str))
     return Preferences(music_root=Path(root).expanduser(), audio_format=fmt)
 
 

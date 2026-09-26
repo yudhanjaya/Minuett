@@ -133,15 +133,37 @@ EQ, and yt-dlp's access to ffmpeg and a JavaScript runtime is confirmed.
 flatpak run io.github.yudhanjaya.Minuett --self-test
 ```
 
+```bash
+./Minuett-0.1.0-x86_64.AppImage --self-test
+```
+
 ## Using it
 
 - **Add music:** File ▸ Import Folder as Playlist… (Ctrl+Shift+I), File ▸
   Add Music Folder…, or Playlists ▸ Import Playlist (Ctrl+I).
-- **Play/pause:** double-click a song or press Enter; F2 edits the selected
-  cell.
-- **Keys:** Space play/pause · Ctrl+. stop · Ctrl+←/→ previous/next ·
-  Ctrl+E edit tags · F2 edit cell · Delete delete · Ctrl+T toolbar mode ·
-  F5 rescan.
+- **Play/pause:** double-click a song or press Enter.
+- **Edit, move or remove songs:** right-click a song in the table or the
+  browse tree.
+- **Download a playlist:** Playlists ▸ Import, paste the link, review the
+  list, then Download. Later, select the playlist and press Check or Update.
+
+### Keyboard shortcuts
+
+| Keys | Action |
+|---|---|
+| Space | Play / pause |
+| Enter, double-click | Play the selected song, or pause/resume it |
+| Ctrl+. | Stop |
+| Ctrl+← / Ctrl+→ | Previous / next |
+| F2 | Edit the selected cell |
+| Ctrl+E | Edit tags of the selected songs |
+| Delete | Delete the selected songs |
+| Ctrl+I | Import a playlist |
+| Ctrl+Shift+I | Import a folder as a playlist |
+| F5 | Rescan the library |
+| Ctrl+T | Toolbar mode (Esc returns) |
+| Ctrl+, | Preferences |
+| Ctrl+Q | Quit |
 
 ### Optional sign-ins
 
@@ -160,8 +182,81 @@ without them.
   (its owner needs Premium), add the redirect URI shown in the dialog, and
   paste the Client ID. Sign-in uses PKCE; no client secret is stored.
 
-Sign-in details are kept in `~/.config/minuett/accounts.json`, readable only
-by you.
+Sign-in details are kept in `accounts.json` (see below), readable only by
+you. Sign out from the same dialog to delete them.
+
+## Your data
+
+| What | Native / AppImage | Flatpak |
+|---|---|---|
+| Downloads | `~/Music/Minuett/<playlist>/` (changeable in Preferences) | same |
+| Library database | `~/.local/share/minuett/library.db` | `~/.var/app/io.github.yudhanjaya.Minuett/data/minuett/` |
+| Settings, EQ, sign-ins, custom themes | `~/.config/minuett/` | `~/.var/app/io.github.yudhanjaya.Minuett/config/minuett/` |
+
+The library database only records where your files are, plus the playlists
+you imported. Deleting it never touches your music; Minuett rebuilds it on
+the next scan (imported playlists would need importing again).
+
+### Privacy
+
+- No telemetry, no accounts of its own, no analytics.
+- Minuett only goes online when you ask it to: to read a playlist you pasted,
+  to search YouTube Music for Spotify/Pandora songs, to download, to sign in,
+  or to check PyPI for a yt-dlp update (Help menu).
+- Browser sign-ins are read locally and sent only to YouTube, the same way
+  your browser sends them. Spotify tokens go only to Spotify.
+
+## Updating and uninstalling
+
+Install the new Flatpak bundle or AppImage over the old one; your library,
+settings and downloads are kept.
+
+YouTube changes often, and an old yt-dlp is the most common reason downloads
+start failing. Help ▸ Check for yt-dlp Update tells you if a newer one exists;
+in the Flatpak and AppImage it's bundled, so get the latest Minuett release.
+
+To uninstall:
+
+```bash
+flatpak uninstall --user io.github.yudhanjaya.Minuett
+```
+
+For the AppImage, delete the file. To remove settings and the library too,
+delete the folders in the table above (for the Flatpak,
+`~/.var/app/io.github.yudhanjaya.Minuett`). Your music in `~/Music` is never
+removed.
+
+## Known limitations
+
+- Linux on x86_64 only.
+- Spotify links without sign-in show at most 100 songs (the public page's
+  limit). Signed in, you can import your own and collaborative playlists in
+  full, but not other people's (Spotify's rule since February 2026).
+- Pandora has no playlist links; export a file instead.
+- Songs from Spotify, Pandora and files are YouTube Music matches, not the
+  original recordings. Occasionally the match is a different version.
+- Editing a playlist in Minuett doesn't change it on YouTube or Spotify.
+- No media-key or desktop "now playing" (MPRIS) support yet.
+- Region-locked, private, age-restricted and members-only videos can't be
+  downloaded without a suitable sign-in, and some not at all. Live streams
+  are skipped.
+
+## Troubleshooting
+
+- **Some songs say "unavailable" or failed:** the video was removed, made
+  private, or is blocked in your region. Retry Failed tries again later;
+  unavailable songs aren't retried.
+- **Many downloads fail at once (HTTP 403, "sign in to confirm"):** YouTube
+  is rate-limiting. Wait a while, sign in to YouTube Music, and make sure
+  yt-dlp is current.
+- **The browser sign-in isn't found in the Flatpak:** run the one-line
+  `flatpak override` command the sign-in dialog shows, then restart Minuett.
+- **Music outside `~/Music` doesn't appear in the Flatpak:** grant the folder
+  (see Installing).
+- **The AppImage doesn't start:** run it with `--appimage-extract-and-run`
+  if FUSE isn't available.
+- **No sound or odd playback:** run the self-test above. It says which part
+  is missing.
 
 ## Building from source
 
@@ -233,7 +328,6 @@ Minuett stands on these projects:
 | [Deno](https://deno.com) | JavaScript runtime yt-dlp needs for YouTube | MIT |
 | [mutagen](https://github.com/quodlibet/mutagen) | reading and writing tags and cover art | GPL-2.0-or-later |
 | [SQLite](https://sqlite.org) | library database | public domain |
-| [watchdog](https://github.com/gorakhargosh/watchdog) | folder monitoring | Apache-2.0 |
 | [SecretStorage](https://github.com/mitya57/secretstorage), [cryptography](https://cryptography.io) | reading browser sign-ins for YouTube Music | BSD-3-Clause / Apache-2.0 or BSD |
 | [Flatpak](https://flatpak.org) with the GNOME runtime, [AppImage](https://appimage.org) | packaging | LGPL-2.1+ / MIT |
 

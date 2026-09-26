@@ -14,7 +14,6 @@ dependencies = [
   "PySide6-Essentials>=6.6",  # QtCore/Gui/Widgets only; keeps bundles small
   "PyGObject>=3.46",
   "mutagen>=1.47",
-  "watchdog>=4.0",
   "yt-dlp[default]",  # [default] brings yt-dlp-ejs, needed for YouTube
   "secretstorage>=3.3",  # lets yt-dlp decrypt Chromium-family browser cookies (YouTube sign-in)
 ]

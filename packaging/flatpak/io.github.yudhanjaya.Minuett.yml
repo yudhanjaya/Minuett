@@ -59,3 +59,7 @@ modules:
           - build-dir
           - .flatpak-builder
           - dist
+          - build
+          - build-repo
+          - .pytest_cache
+          - .git

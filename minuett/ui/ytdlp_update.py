@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import urllib.request
@@ -62,6 +63,13 @@ def check_for_update(parent: QWidget, busy) -> None:
             return
         if _norm(latest) <= _norm(current):
             QMessageBox.information(parent, "yt-dlp", f"yt-dlp {current} is the latest version.")
+            return
+        if os.environ.get("FLATPAK_ID") or os.environ.get("APPIMAGE"):
+            QMessageBox.information(
+                parent, "yt-dlp",
+                f"yt-dlp {latest} is available (you have {current}).\n\n"
+                "It is bundled with Minuett, so install the latest Minuett release "
+                "to get it.")
             return
         in_venv = sys.prefix != sys.base_prefix
         if not in_venv:

@@ -2,7 +2,7 @@
   "name": "python-deps",
   "buildsystem": "simple",
   "build-commands": [
-    "pip3 install --verbose --no-index --find-links=\"file://${PWD}\" --prefix=${FLATPAK_DEST} --no-build-isolation PySide6_Essentials==6.11.2 SecretStorage==3.5.0 brotli==1.2.0 certifi==2026.7.22 cffi==2.1.1 charset-normalizer==3.5.1 cryptography==50.0.1 idna==3.20 jeepney==0.9.0 mutagen==1.48.1 pycparser==3.0 pycryptodomex==3.23.0 requests==2.34.2 shiboken6==6.11.2 urllib3==2.8.0 watchdog==6.0.0 websockets==17.1 yt-dlp-ejs==0.8.0 yt-dlp==2026.8.19"
+    "pip3 install --verbose --no-index --find-links=\"file://${PWD}\" --prefix=${FLATPAK_DEST} --no-build-isolation PySide6_Essentials==6.11.2 SecretStorage==3.5.0 brotli==1.2.0 certifi==2026.7.22 cffi==2.1.1 charset-normalizer==3.5.1 cryptography==50.0.1 idna==3.20 jeepney==0.9.0 mutagen==1.48.1 pycparser==3.0 pycryptodomex==3.23.0 requests==2.34.2 shiboken6==6.11.2 urllib3==2.8.0 websockets==17.1 yt-dlp-ejs==0.8.0 yt-dlp==2026.8.19"
   ],
   "sources": [
     {
@@ -74,11 +74,6 @@
       "type": "file",
       "url": "https://files.pythonhosted.org/packages/b2/a3/e137168c9c44d18eff0376253da9f1e9234d0239e0ee230d2fee6cea8e55/jeepney-0.9.0-py3-none-any.whl",
       "sha256": "97e5714520c16fc0a45695e5365a2e11b81ea79bba796e26f9f1d178cb182683"
-    },
-    {
-      "type": "file",
-      "url": "https://files.pythonhosted.org/packages/b5/e8/dbf020b4d98251a9860752a094d09a65e1b436ad181faf929983f697048f/watchdog-6.0.0-py3-none-manylinux2014_x86_64.whl",
-      "sha256": "20ffe5b202af80ab4266dcd3e91aae72bf2da48c0d33bdb15c66658e685e94e2"
     },
     {
       "type": "file",

@@ -423,7 +423,7 @@ class MainWindow(QMainWindow):
         import_pl = QAction("&Import YouTube Playlist…", self, shortcut=QKeySequence("Ctrl+I"),
                             triggered=lambda: (self.nav.setCurrentRow(NAV_ITEMS.index("Playlists")),
                                                self.playlists_view.import_playlist()))
-        prefs = QAction("&Preferences…", self, shortcut=QKeySequence.StandardKey.Preferences,
+        prefs = QAction("&Preferences…", self, shortcut=QKeySequence("Ctrl+,"),
                         triggered=lambda: PreferencesDialog(self.settings, self).exec())
         import_dir = QAction("Import &Folder as Playlist…", self, shortcut=QKeySequence("Ctrl+Shift+I"),
                              triggered=self.import_folder)

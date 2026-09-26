@@ -1,6 +1,7 @@
 """The GStreamer side of the equalizer: a bin for playbin's ``audio-filter``.
 
     audioconvert ! volume name=preamp ! equalizer-nbands num-bands=10 ! audioconvert
+        ! spectrum name=spectrum      (feeds the visualizer; audio passes through)
 
 Band properties can be changed while playing. "Off" is a bypass done by
 zeroing gains and preamp rather than relinking the pipeline, so toggling
@@ -16,6 +17,9 @@ from gi.repository import Gst  # noqa: E402
 
 from .equalizer import NUM_BANDS, EqState  # noqa: E402
 
+SPECTRUM_BANDS = 2048                  # ~12 Hz per band at 48 kHz, so each bass bar gets its own bands
+SPECTRUM_INTERVAL_NS = 1_000_000_000 // 30   # 30 updates a second
+
 Gst.init(None)
 
 
@@ -23,11 +27,14 @@ class EqualizerFilter:
     def __init__(self) -> None:
         self.bin = Gst.parse_bin_from_description(
             f"audioconvert ! volume name=preamp ! "
-            f"equalizer-nbands name=eq num-bands={NUM_BANDS} ! audioconvert",
+            f"equalizer-nbands name=eq num-bands={NUM_BANDS} ! audioconvert ! "
+            f"spectrum name=spectrum bands={SPECTRUM_BANDS} threshold=-80 "
+            f"interval={SPECTRUM_INTERVAL_NS} post-messages=true message-magnitude=true",
             True)  # ghost the unlinked src/sink pads
         self.bin.set_name("antiphon-eq")
         self.preamp = self.bin.get_by_name("preamp")
         self.eq = self.bin.get_by_name("eq")
+        self.spectrum = self.bin.get_by_name("spectrum")
         peak = self._peak_type()
         for i in range(NUM_BANDS):
             band = self.eq.get_child_by_index(i)
@@ -42,6 +49,9 @@ class EqualizerFilter:
             return enum_type.pytype(0) if enum_type.pytype else 0
         except (TypeError, ValueError):
             return 0
+
+    def set_spectrum_enabled(self, on: bool) -> None:
+        self.spectrum.set_property("post-messages", on)
 
     def apply(self, state: EqState) -> None:
         on = state.enabled

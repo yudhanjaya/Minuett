@@ -92,6 +92,7 @@ A file with the same name as a built-in theme (e.g. `nord.css`) replaces it.
 | Sliders | `--groove`, `--groove-fill` | track, and the played / lit part |
 | | `--thumb`, `--glow` | slider thumb and its glow |
 | Display | `--lcd`, `--lcd-text`, `--lcd-dim`, `--lcd-border` | the now-playing readout |
+| Visualizer | `--vis-low`, `--vis-mid`, `--vis-high`, `--vis-peak` | spectrum analyzer gradient (bottom → top) and peak markers; default to the theme's `--groove-fill`, `--lcd-text` and `--warning` |
 | Equalizer | `--eq-curve`, `--eq-fill`, `--eq-grid` | response curve, its shading, grid |
 | | `--fader-cap`, `--knob-top`, `--knob-bottom` | fader caps and knob bodies |
 | Type | `--font`, `--font-size`, `--lcd-font` | UI font list, base size (px), display font |

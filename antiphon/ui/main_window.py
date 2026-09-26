@@ -163,6 +163,8 @@ class TransportBar(QWidget):
 
     def _on_state(self, state: State) -> None:
         self.play_btn.set_kind("pause" if state is State.PLAYING else "play")
+        if state is not State.PLAYING:
+            self.display.silence()
         if state is State.STOPPED:
             self.position.setRange(0, 0)
             self.display.set_time("", "")
@@ -295,6 +297,7 @@ class MainWindow(QMainWindow):
         self.player.track_changed.connect(self._on_track_changed)
         self.player.queue_changed.connect(self._refresh_queue)
         self.player.bitrate_changed.connect(self._on_bitrate)
+        self.player.spectrum.connect(self.transport.display.feed_spectrum)
         self.player.error.connect(lambda m: self.statusBar().showMessage(f"Playback error: {m}", 8000))
         self._bitrate: int | None = None
 
@@ -423,6 +426,11 @@ class MainWindow(QMainWindow):
                                shortcut=QKeySequence("Ctrl+T"), toggled=self.set_compact)
         view_menu.addAction(self.toggle_queue)
         view_menu.addAction(self.compact)
+        vis_on = self.settings.value("ui/visualizer", True, type=bool)
+        self.visualizer_action = QAction("&Visualizer", self, checkable=True, checked=vis_on,
+                                         toggled=self.set_visualizer)
+        view_menu.addAction(self.visualizer_action)
+        self.set_visualizer(vis_on)
         self.queue_button = icon_button("queue", "Show or hide the Up Next queue",
                                         checkable=True)
         self.queue_button.setChecked(True)
@@ -541,6 +549,12 @@ class MainWindow(QMainWindow):
     def _on_eq_changed(self, state) -> None:
         self.eq_filter.apply(state)   # live: GStreamer band properties are runtime-safe
         self._eq_save.start()         # write the JSON once dragging settles
+
+    def set_visualizer(self, on: bool) -> None:
+        """Show or hide the spectrum analyzer (off also stops the analysis work)."""
+        self.settings.setValue("ui/visualizer", on)
+        self.eq_filter.set_spectrum_enabled(on)
+        self.transport.display.set_visualizer_enabled(on)
 
     def fix_genre_tags(self) -> None:
         """Tidy tracks downloaded before genre tags were split from titles."""

@@ -6,11 +6,15 @@ from __future__ import annotations
 
 import math
 
-from PySide6.QtCore import QPointF, QRectF, QSize, Qt, Signal
+import time
+
+from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import (
     QColor, QLinearGradient, QPainter, QPainterPath, QPen, QRadialGradient,
 )
 from PySide6.QtWidgets import QAbstractButton, QDial, QSizePolicy, QSlider, QStyle, QWidget
+
+from antiphon.core.visualizer import Analyzer, bar_ranges, bars_from_magnitudes
 
 from .manager import manager
 
@@ -373,7 +377,12 @@ class Knob(QDial):
 # --- display panel -----------------------------------------------------------
 
 class StatusDisplay(QWidget):
-    """The status readout: title, details line, state and time, LCD-style."""
+    """The now-playing readout, LCD-style: time on the left, title and details
+    in the middle, and a Winamp-style spectrum analyzer on the right half."""
+
+    VIS_MAX_FRACTION = 0.5     # the analyzer never takes more than half the panel
+    VIS_MIN_WIDTH = 60
+    FRAME_MS = 33
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -381,6 +390,14 @@ class StatusDisplay(QWidget):
         self.details = "Stopped"
         self.state = ""
         self.time = ""
+        self.visualizer_enabled = True
+        self.analyzer = Analyzer(24)
+        self._ranges_key: tuple | None = None
+        self._ranges: list[tuple[int, int]] = []
+        self._vis_rect = QRectF()
+        self._last_step = 0.0
+        self._timer = QTimer(self, interval=self.FRAME_MS)
+        self._timer.timeout.connect(self._animate)
         self.setMinimumSize(260, 46)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
 
@@ -397,6 +414,43 @@ class StatusDisplay(QWidget):
             self.time, self.state = time, state
             self.update()
 
+    # --- visualizer --------------------------------------------------------
+
+    def set_visualizer_enabled(self, on: bool) -> None:
+        self.visualizer_enabled = on
+        if not on:
+            self._timer.stop()
+            self.analyzer.resize(0)
+        self.update()
+
+    def feed_spectrum(self, magnitudes: list[float], rate: int) -> None:
+        if not self.visualizer_enabled or self._vis_rect.width() < self.VIS_MIN_WIDTH:
+            return
+        n = self.analyzer.n_bars
+        key = (n, rate, len(magnitudes))
+        if key != self._ranges_key:
+            self._ranges = bar_ranges(n, rate, len(magnitudes))
+            self._ranges_key = key
+        self.analyzer.feed(bars_from_magnitudes(magnitudes, self._ranges,
+                                                band_hz=rate / 2 / len(magnitudes)))
+        if not self._timer.isActive():
+            self._last_step = time.monotonic()
+            self._timer.start()
+
+    def silence(self) -> None:
+        """Playback paused or stopped: let the bars fall away."""
+        self.analyzer.silence()
+
+    def _animate(self) -> None:
+        now = time.monotonic()
+        alive = self.analyzer.step(min(0.1, now - self._last_step))
+        self._last_step = now
+        self.update(self._vis_rect.toAlignedRect().adjusted(-2, -2, 2, 2))
+        if not alive:
+            self._timer.stop()
+
+    # --- painting ------------------------------------------------------------
+
     def paintEvent(self, event) -> None:
         m = manager()
         p = QPainter(self)
@@ -412,21 +466,38 @@ class StatusDisplay(QWidget):
         p.drawRoundedRect(rect, radius, radius)
 
         inner = rect.adjusted(10, 5, -10, -5)
-        time_w = 0.0
+        x = inner.left()
+
+        # Time on the left (Winamp's big clock), state underneath.
         if self.time:
-            p.setFont(m.lcd_font(20, bold=True))
-            time_w = p.fontMetrics().horizontalAdvance(self.time) + 4
+            elapsed = self.time.split(" / ")[0]
+            p.setFont(m.lcd_font(22, bold=True))
+            tw = p.fontMetrics().horizontalAdvance(elapsed) + 2
             p.setPen(_c("lcd-text"))
-            p.drawText(QRectF(inner.right() - time_w, inner.top(), time_w, inner.height() * 0.66),
-                       Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, self.time)
-            if self.state:
-                p.setFont(m.lcd_font(10))
-                p.setPen(_c("lcd-dim"))
-                p.drawText(QRectF(inner.right() - time_w, inner.top() + inner.height() * 0.6,
-                                  time_w, inner.height() * 0.4),
-                           Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter,
-                           self.state.upper())
-        text_rect = QRectF(inner.left(), inner.top(), inner.width() - time_w - 12, inner.height())
+            p.drawText(QRectF(x, inner.top() - 2, tw, inner.height() * 0.7),
+                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, elapsed)
+            p.setFont(m.lcd_font(10))
+            p.setPen(_c("lcd-dim"))
+            total = self.time.split(" / ")[1] if " / " in self.time else ""
+            under = " ".join(part for part in (self.state.upper(), f"/ {total}" if total else "") if part)
+            uw = p.fontMetrics().horizontalAdvance(under) + 2
+            p.drawText(QRectF(x, inner.top() + inner.height() * 0.62, uw, inner.height() * 0.38),
+                       Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, under)
+            x += max(tw, uw) + 14
+
+        # Analyzer on the right, never wider than half the panel.
+        vis_w = 0.0
+        if self.visualizer_enabled:
+            vis_w = min(inner.width() * self.VIS_MAX_FRACTION, inner.right() - x - 120)
+        if vis_w >= self.VIS_MIN_WIDTH:
+            self._vis_rect = QRectF(inner.right() - vis_w, inner.top() + 1, vis_w, inner.height() - 2)
+            self._paint_spectrum(p, self._vis_rect)
+            text_right = self._vis_rect.left() - 12
+        else:
+            self._vis_rect = QRectF()
+            text_right = inner.right()
+
+        text_rect = QRectF(x, inner.top(), max(0.0, text_right - x), inner.height())
         p.setFont(m.lcd_font(14, bold=True))
         p.setPen(_c("lcd-text"))
         fm = p.fontMetrics()
@@ -441,3 +512,28 @@ class StatusDisplay(QWidget):
                    Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter,
                    fm.elidedText(self.details, Qt.TextElideMode.ElideRight, int(text_rect.width())))
         p.end()
+
+    def _paint_spectrum(self, p: QPainter, r: QRectF) -> None:
+        gap = 1.0
+        n = int(max(10, min(40, r.width() // 5)))
+        self.analyzer.resize(n)
+        bar_w = (r.width() - gap * (n - 1)) / n
+        low, mid, high, peak = (_c("vis-low"), _c("vis-mid"), _c("vis-high"), _c("vis-peak"))
+        # One gradient spanning the full height: a short bar shows only the
+        # low colour, a tall one runs up into the hot colours, as in Winamp.
+        grad = QLinearGradient(r.bottomLeft(), r.topLeft())
+        grad.setColorAt(0.0, low)
+        grad.setColorAt(0.55, mid)
+        grad.setColorAt(1.0, high)
+        base = _alpha(_c("lcd-dim"), 70)
+        p.setPen(Qt.PenStyle.NoPen)
+        for i in range(n):
+            bx = r.left() + i * (bar_w + gap)
+            p.fillRect(QRectF(bx, r.bottom() - 1, bar_w, 1), base)
+            h = self.analyzer.bars[i] * r.height()
+            if h >= 1:
+                p.fillRect(QRectF(bx, r.bottom() - h, bar_w, h), grad)
+            pk = self.analyzer.peaks[i]
+            if pk > 0.02:
+                y = r.bottom() - pk * r.height()
+                p.fillRect(QRectF(bx, max(r.top(), y - 1.5), bar_w, 1.5), peak)

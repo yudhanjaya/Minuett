@@ -13,6 +13,7 @@ from the STREAM_START message on the bus.
 from __future__ import annotations
 
 import threading
+from collections import deque
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -23,6 +24,7 @@ gi.require_version("Gst", "1.0")
 from gi.repository import Gst  # noqa: E402
 
 from .signals import Signal  # noqa: E402
+from .visualizer import parse_magnitudes  # noqa: E402
 
 Gst.init(None)
 
@@ -56,6 +58,7 @@ _BUS_TYPES = (
     | Gst.MessageType.STREAM_START
     | Gst.MessageType.DURATION_CHANGED
     | Gst.MessageType.TAG
+    | Gst.MessageType.ELEMENT      # spectrum measurements
 )
 
 
@@ -84,6 +87,9 @@ class Player:
         self.bitrate_changed = Signal()   # (bits per second)
         self.queue_changed = Signal()     # ()
         self.error = Signal()             # (message)
+        self.spectrum = Signal()          # (magnitudes in dB, sample rate), in sync with playback
+        self._spectrum_queue: deque[tuple[int, list[float]]] = deque()
+        self._spectrum_rate = 48000
 
     # --- queue ------------------------------------------------------------
 
@@ -260,9 +266,59 @@ class Player:
             if msg is None:
                 break
             self._handle(msg)
+        self._release_spectrum()
+
+    def _running_time(self) -> int | None:
+        clock = self.playbin.get_clock()
+        if clock is None:
+            return None
+        return clock.get_time() - self.playbin.get_base_time()
+
+    def _release_spectrum(self) -> None:
+        """Emit spectrum frames once the audio they describe is actually playing.
+
+        The spectrum element sees buffers before the sound card plays them
+        (the sink keeps a buffer), so frames wait here until the pipeline's
+        running time reaches them; the bars then line up with what you hear.
+        """
+        if not self._spectrum_queue:
+            return
+        if self._state is not State.PLAYING:
+            self._spectrum_queue.clear()
+            return
+        now = self._running_time()
+        latest = None
+        while self._spectrum_queue and (now is None or self._spectrum_queue[0][0] <= now):
+            latest = self._spectrum_queue.popleft()[1]
+        if latest is not None:
+            self.spectrum.emit(latest, self._spectrum_rate)
+
+    def _on_spectrum(self, msg: Gst.Message) -> None:
+        s = msg.get_structure()
+        mags = parse_magnitudes(s.to_string())
+        if not mags:
+            return
+        ok, running = s.get_uint64("running-time")
+        ok2, duration = s.get_uint64("duration")
+        due = (running + duration) if ok and ok2 else 0
+        if len(self._spectrum_queue) > 60:   # never let a stalled clock build a backlog
+            self._spectrum_queue.popleft()
+        self._spectrum_queue.append((due, mags))
+        if self._spectrum_rate == 48000 and msg.src is not None:
+            pad = msg.src.get_static_pad("sink")
+            caps = pad.get_current_caps() if pad else None
+            if caps:
+                ok, rate = caps.get_structure(0).get_int("rate")
+                if ok:
+                    self._spectrum_rate = rate
 
     def _handle(self, msg: Gst.Message) -> None:
         t = msg.type
+        if t == Gst.MessageType.ELEMENT:
+            s = msg.get_structure()
+            if s is not None and s.get_name() == "spectrum":
+                self._on_spectrum(msg)
+            return
         if t == Gst.MessageType.STREAM_START:
             with self._lock:
                 switched = self._pending >= 0

@@ -49,6 +49,13 @@
   --lcd-dim: #5588a8;
   --lcd-border: #05090e;
 
+  /* Spectrum analyzer, bottom to top. Other themes inherit these, which
+     resolve to their own accent/display/warning colours. */
+  --vis-low: var(--groove-fill);
+  --vis-mid: var(--lcd-text);
+  --vis-high: var(--warning);
+  --vis-peak: var(--lcd-text);
+
   --eq-curve: #57b0ff;
   --eq-fill: rgba(61, 142, 224, 0.22);
   --eq-grid: #3a414b;

@@ -18,7 +18,7 @@ from pathlib import Path
 ELEMENTS = [
     "playbin", "equalizer-nbands", "volume", "audioconvert", "autoaudiosink",
     "pulsesink", "opusdec", "vorbisdec", "flacdec", "mpg123audiodec", "avdec_aac",
-    "qtdemux", "matroskademux", "oggdemux", "id3demux",
+    "qtdemux", "matroskademux", "oggdemux", "id3demux", "spectrum",
 ]
 FORMATS = {  # extension -> ffmpeg encoder args
     "opus": ["-c:a", "libopus"],

@@ -81,7 +81,7 @@ GST_SRC="/usr/lib/$TRIPLET/gstreamer-1.0"
 mkdir -p "$USR/lib/gstreamer-1.0"
 for p in coreelements playback typefindfunctions audioconvert audioresample volume \
          equalizer autodetect pulseaudio alsa opus vorbis ogg flac mpg123 isomp4 \
-         matroska audioparsers id3demux apetag wavparse libav app audiotestsrc; do
+         matroska audioparsers id3demux apetag wavparse libav app audiotestsrc spectrum; do
   cp "$GST_SRC/libgst$p.so" "$USR/lib/gstreamer-1.0/"
 done
 cp "/usr/lib/$TRIPLET/gstreamer1.0/gstreamer-1.0/gst-plugin-scanner" "$USR/libexec/"

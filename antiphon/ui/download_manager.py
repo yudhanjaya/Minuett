@@ -20,13 +20,17 @@ from pathlib import Path
 from PySide6.QtCore import QObject, QThread, Signal, Slot
 
 from antiphon.core.downloader.naming import safe_filename
-from antiphon.core.downloader.playlist import ListingError, SyncPlan, fetch_listing, reconcile
+from antiphon.core.downloader.playlist import (
+    ListingError, SyncPlan, fetch_listing, reconcile,
+)
+from antiphon.core.downloader.sources.files import listing_from_file
+from antiphon.core.library.db import FAILED, NEW
 from antiphon.core.downloader.worker import (
     Downloader, Job, JobStatus, Preferences, jobs_for, retry_failed,
 )
 from antiphon.core.library.db import LibraryDB
 
-IMPORT, CHECK, UPDATE, RETRY = "import", "check", "update", "retry"
+IMPORT, IMPORT_FILE, CHECK, UPDATE, RETRY = "import", "import-file", "check", "update", "retry"
 
 
 @dataclass
@@ -34,6 +38,10 @@ class Operation:
     kind: str
     playlist_id: int | None = None
     url: str | None = None
+    # IMPORT_FILE: the export file, its service and the playlist name
+    path: str | None = None
+    source: str | None = None
+    name: str | None = None
 
 
 @dataclass
@@ -103,22 +111,31 @@ class _Worker(QObject):
 
     def _sync(self, op: Operation, result: OpResult) -> tuple[int, SyncPlan]:
         assert self.db is not None and self.prefs is not None
-        if op.kind == IMPORT:
-            listing = fetch_listing(op.url or "")
+        if op.kind in (IMPORT, IMPORT_FILE):
+            if op.kind == IMPORT:
+                listing = fetch_listing(op.url or "")
+            else:
+                listing = listing_from_file(op.path or "", op.source or "other",
+                                            op.name or "Imported playlist")
             existing = self.db.playlist_by_url(listing.url)
             if existing:
                 pid = existing.id
             else:
                 folder = self.prefs.music_root / safe_filename(listing.title)
-                pid = self.db.add_youtube_playlist(
-                    listing.title, listing.url, listing.playlist_id, str(folder))
-        else:
-            pl = self.db.get_playlist(op.playlist_id or -1)
-            if pl is None or not pl.source_url:
-                raise ListingError("That playlist no longer exists or isn't from YouTube.")
-            pid = pl.id
-            listing = fetch_listing(pl.source_url)
-        return pid, reconcile(self.db, pid, listing)
+                pid = self.db.add_imported_playlist(
+                    listing.title, listing.url, listing.playlist_id, str(folder), listing.source)
+            return pid, reconcile(self.db, pid, listing)
+        pl = self.db.get_playlist(op.playlist_id or -1)
+        if pl is None or not pl.source_url:
+            raise ListingError("That playlist no longer exists or wasn't imported.")
+        if pl.is_file_import:
+            # Nothing to fetch: the export file is the listing. Update just
+            # (re)tries what isn't downloaded yet.
+            plan = SyncPlan(pl.id)
+            plan.to_download = [e for e in self.db.entries(pl.id) if e.status in (NEW, FAILED)]
+            plan.kept = sum(e.status == "done" for e in self.db.entries(pl.id))
+            return pl.id, plan
+        return pl.id, reconcile(self.db, pl.id, fetch_listing(pl.source_url))
 
     def cancel(self) -> None:
         # Called from the UI thread; Downloader.cancel is a threading.Event.
@@ -166,6 +183,9 @@ class DownloadManager(QObject):
 
     def import_url(self, url: str) -> bool:
         return self.submit(Operation(IMPORT, url=url))
+
+    def import_file(self, path: str, source: str, name: str) -> bool:
+        return self.submit(Operation(IMPORT_FILE, path=path, source=source, name=name))
 
     def check(self, playlist_id: int) -> bool:
         return self.submit(Operation(CHECK, playlist_id))

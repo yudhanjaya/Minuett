@@ -7,7 +7,7 @@ from dataclasses import asdict, dataclass, fields
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS tracks (
@@ -19,7 +19,9 @@ CREATE TABLE IF NOT EXISTS tracks (
   youtube_id TEXT, source_playlist TEXT,
   date_added TEXT, play_count INTEGER DEFAULT 0,
   last_played TEXT, rating INTEGER,
-  mtime REAL
+  mtime REAL,
+  source TEXT,                -- youtube, youtube-music, spotify, pandora, …; NULL = local file
+  source_url TEXT             -- the track's page on that service
 );
 CREATE INDEX IF NOT EXISTS idx_tracks_artist ON tracks(artist);
 CREATE INDEX IF NOT EXISTS idx_tracks_album ON tracks(album);
@@ -29,26 +31,36 @@ CREATE INDEX IF NOT EXISTS idx_tracks_youtube_id ON tracks(youtube_id);
 CREATE TABLE IF NOT EXISTS playlists (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
-  source_url TEXT UNIQUE,     -- NULL for local playlists
-  youtube_id TEXT,
+  source_url TEXT UNIQUE,     -- link, or "import:<source>:<name>" for file imports; NULL = local
+  youtube_id TEXT,            -- the service's playlist id (YouTube list id, Spotify id, …)
+  source TEXT,                -- youtube, youtube-music, spotify, pandora, other
   folder TEXT,                -- download folder, fixed at import so renames don't split it
   added TEXT,
   last_checked TEXT,          -- last time we fetched the remote listing
   last_updated TEXT           -- last time an update finished downloading
 );
--- One row per playlist slot. For YouTube playlists this mirrors the remote
+-- One row per playlist slot. For imported playlists this mirrors the source
 -- listing, including entries not (yet) downloaded, so an update can tell
--- exactly what is new. position is NULL once an entry leaves the remote list.
+-- exactly what is new. position is NULL once an entry leaves the listing.
+-- item_id is the source's key for the entry (a YouTube video id, a Spotify
+-- track URI, …); youtube_id is the video the audio comes from, which for
+-- non-YouTube sources is found by matching and may be NULL until then.
 CREATE TABLE IF NOT EXISTS playlist_entries (
   id INTEGER PRIMARY KEY,
   playlist_id INTEGER NOT NULL REFERENCES playlists(id) ON DELETE CASCADE,
   position INTEGER,
+  item_id TEXT,
   youtube_id TEXT,
   title TEXT,
+  artist TEXT,
+  album TEXT,
+  duration_ms INTEGER,
+  isrc TEXT,
+  source_url TEXT,
   track_id INTEGER REFERENCES tracks(id) ON DELETE SET NULL,
   status TEXT NOT NULL DEFAULT 'new',
   error TEXT,
-  UNIQUE (playlist_id, youtube_id)
+  UNIQUE (playlist_id, item_id)
 );
 CREATE INDEX IF NOT EXISTS idx_entries_playlist ON playlist_entries(playlist_id, position);
 """
@@ -85,6 +97,8 @@ class Track:
     last_played: str | None = None
     rating: int | None = None
     mtime: float | None = None
+    source: str | None = None
+    source_url: str | None = None
     id: int | None = None
 
     @classmethod
@@ -105,6 +119,7 @@ class Playlist:
     name: str
     source_url: str | None
     youtube_id: str | None
+    source: str | None
     folder: str | None
     added: str | None
     last_checked: str | None
@@ -115,7 +130,17 @@ class Playlist:
 
     @property
     def is_youtube(self) -> bool:
+        """Imported from any source (kept for compatibility; see is_imported)."""
         return self.source_url is not None
+
+    @property
+    def is_imported(self) -> bool:
+        return self.source_url is not None
+
+    @property
+    def is_file_import(self) -> bool:
+        """Imported from an exported file: updating means importing a newer file."""
+        return bool(self.source_url and self.source_url.startswith("import:"))
 
 
 @dataclass
@@ -123,8 +148,14 @@ class Entry:
     id: int
     playlist_id: int
     position: int | None
+    item_id: str | None
     youtube_id: str | None
     title: str | None
+    artist: str | None
+    album: str | None
+    duration_ms: int | None
+    isrc: str | None
+    source_url: str | None
     track_id: int | None
     status: str
     error: str | None
@@ -141,18 +172,43 @@ class LibraryDB:
         self.conn.execute("PRAGMA journal_mode = WAL")
         self._migrate()
 
+    def _columns(self, table: str) -> set[str]:
+        return {r[1] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+
+    def _add_columns(self, table: str, columns: dict[str, str]) -> None:
+        have = self._columns(table)
+        for name, decl in columns.items():
+            if have and name not in have:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+
     def _migrate(self) -> None:
         version = self.conn.execute("PRAGMA user_version").fetchone()[0]
         has_v1_items = self.conn.execute(
             "SELECT 1 FROM sqlite_master WHERE name = 'playlist_items'").fetchone()
-        if version == 1:
-            # v1 playlists lacked the YouTube bookkeeping columns.
-            for col in ("youtube_id", "folder", "added", "last_checked", "last_updated"):
-                try:
-                    self.conn.execute(f"ALTER TABLE playlists ADD COLUMN {col} TEXT")
-                except sqlite3.OperationalError:
-                    pass
+        # v1 playlists lacked the bookkeeping columns; v3 added sources.
+        self._add_columns("playlists", {c: "TEXT" for c in (
+            "youtube_id", "folder", "added", "last_checked", "last_updated", "source")})
+        self._add_columns("tracks", {"source": "TEXT", "source_url": "TEXT"})
+        entries_cols = self._columns("playlist_entries")
+        if entries_cols and "item_id" not in entries_cols:
+            # v2 keyed entries by YouTube video id with a UNIQUE constraint on it;
+            # SQLite can't change constraints in place, so rebuild the table.
+            self.conn.execute("ALTER TABLE playlist_entries RENAME TO playlist_entries_v2")
+            self.conn.execute("DROP INDEX IF EXISTS idx_entries_playlist")
         self.conn.executescript(SCHEMA)
+        if entries_cols and "item_id" not in entries_cols:
+            self.conn.execute(
+                "INSERT INTO playlist_entries (id, playlist_id, position, item_id, youtube_id, "
+                "title, track_id, status, error) SELECT id, playlist_id, position, youtube_id, "
+                "youtube_id, title, track_id, status, error FROM playlist_entries_v2")
+            self.conn.execute("DROP TABLE playlist_entries_v2")
+        if version and version < 3:
+            # Everything imported before v3 came from YouTube.
+            self.conn.execute("UPDATE playlists SET source = 'youtube' "
+                              "WHERE source IS NULL AND source_url IS NOT NULL")
+            self.conn.execute("UPDATE tracks SET source = 'youtube', source_url = "
+                              "'https://www.youtube.com/watch?v=' || youtube_id "
+                              "WHERE source IS NULL AND youtube_id IS NOT NULL")
         if has_v1_items:
             self.conn.execute(
                 "INSERT OR IGNORE INTO playlist_entries (playlist_id, position, track_id, status) "
@@ -178,7 +234,7 @@ class LibraryDB:
         data["date_added"] = data["date_added"] or _now()
         # Fields a rescan must not clobber.
         keep = {"date_added", "play_count", "last_played", "rating",
-                "youtube_id", "source_playlist"}
+                "youtube_id", "source_playlist", "source", "source_url"}
         cols = ", ".join(data)
         params = ", ".join(f":{k}" for k in data)
         updates = ", ".join(
@@ -235,6 +291,11 @@ class LibraryDB:
             "SELECT * FROM tracks WHERE youtube_id = ? ORDER BY id LIMIT 1", (youtube_id,)).fetchone()
         return Track.from_row(row) if row else None
 
+    def find_by_source_url(self, source_url: str) -> Track | None:
+        row = self.conn.execute(
+            "SELECT * FROM tracks WHERE source_url = ? ORDER BY id LIMIT 1", (source_url,)).fetchone()
+        return Track.from_row(row) if row else None
+
     # --- playlists --------------------------------------------------------
 
     _PLAYLIST_SELECT = """
@@ -259,15 +320,22 @@ class LibraryDB:
         row = self.conn.execute("SELECT id FROM playlists WHERE source_url = ?", (url,)).fetchone()
         return self.get_playlist(row[0]) if row else None
 
-    def add_youtube_playlist(self, name: str, url: str, youtube_id: str | None, folder: str) -> int:
+    def add_imported_playlist(self, name: str, url: str, remote_id: str | None, folder: str,
+                              source: str) -> int:
+        """Create (or find, by URL/import key) a playlist imported from ``source``."""
         existing = self.playlist_by_url(url)
         if existing:
             return existing.id
         pid = self.conn.execute(
-            "INSERT INTO playlists (name, source_url, youtube_id, folder, added) "
-            "VALUES (?, ?, ?, ?, ?)", (name, url, youtube_id, folder, _now())).lastrowid
+            "INSERT INTO playlists (name, source_url, youtube_id, folder, added, source) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (name, url, remote_id, folder, _now(), source)).lastrowid
         self.conn.commit()
         return pid
+
+    def add_youtube_playlist(self, name: str, url: str, youtube_id: str | None, folder: str,
+                             source: str = "youtube") -> int:
+        return self.add_imported_playlist(name, url, youtube_id, folder, source)
 
     def rename_playlist(self, playlist_id: int, name: str) -> None:
         """Rename, carrying the Playlist column of tracks imported from it."""
@@ -310,20 +378,35 @@ class LibraryDB:
             "ORDER BY position IS NULL, position, id", (playlist_id,))
         return [Entry(**dict(r)) for r in rows]
 
-    def upsert_entry(self, playlist_id: int, youtube_id: str, position: int | None,
-                     title: str | None) -> Entry:
+    def upsert_entry(self, playlist_id: int, item_id: str, position: int | None,
+                     title: str | None, *, youtube_id: str | None = None,
+                     artist: str | None = None, album: str | None = None,
+                     duration_ms: int | None = None, isrc: str | None = None,
+                     source_url: str | None = None) -> Entry:
+        """Insert or refresh an entry keyed by its source ``item_id``.
+
+        Known values are never overwritten with NULL, so a matched youtube_id
+        or a title survives a listing that doesn't repeat them.
+        """
         self.conn.execute(
-            "INSERT INTO playlist_entries (playlist_id, youtube_id, position, title) "
-            "VALUES (?, ?, ?, ?) ON CONFLICT(playlist_id, youtube_id) DO UPDATE SET "
-            "position = excluded.position, title = COALESCE(excluded.title, title)",
-            (playlist_id, youtube_id, position, title))
+            "INSERT INTO playlist_entries (playlist_id, item_id, youtube_id, position, title, "
+            "artist, album, duration_ms, isrc, source_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(playlist_id, item_id) DO UPDATE SET position = excluded.position, "
+            "title = COALESCE(excluded.title, title), "
+            "youtube_id = COALESCE(excluded.youtube_id, youtube_id), "
+            "artist = COALESCE(excluded.artist, artist), album = COALESCE(excluded.album, album), "
+            "duration_ms = COALESCE(excluded.duration_ms, duration_ms), "
+            "isrc = COALESCE(excluded.isrc, isrc), "
+            "source_url = COALESCE(excluded.source_url, source_url)",
+            (playlist_id, item_id, youtube_id, position, title, artist, album, duration_ms,
+             isrc, source_url))
         row = self.conn.execute(
-            "SELECT * FROM playlist_entries WHERE playlist_id = ? AND youtube_id = ?",
-            (playlist_id, youtube_id)).fetchone()
+            "SELECT * FROM playlist_entries WHERE playlist_id = ? AND item_id = ?",
+            (playlist_id, item_id)).fetchone()
         return Entry(**dict(row))
 
     def set_entry(self, entry_id: int, **changes: object) -> None:
-        allowed = {"position", "title", "track_id", "status", "error"}
+        allowed = {"position", "title", "track_id", "status", "error", "youtube_id"}
         if not changes or set(changes) - allowed:
             raise ValueError(sorted(set(changes) - allowed))
         sets = ", ".join(f"{k} = ?" for k in changes)

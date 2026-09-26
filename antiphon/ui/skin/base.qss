@@ -206,3 +206,22 @@ QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
 
 /* --- dialogs ------------------------------------------------------------ */
 QDialog QLabel#FormLabel { color: var(--text-muted); }
+
+/* --- tabs --------------------------------------------------------------- */
+QTabWidget::pane {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  top: -1px;
+}
+QTabBar::tab {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-2) var(--space-4);
+  margin-right: var(--space-1);
+}
+QTabBar::tab:hover { color: var(--text); }
+QTabBar::tab:selected { color: var(--text); border-bottom: 2px solid var(--accent); }
+QTabBar::tab:focus { color: var(--text); }

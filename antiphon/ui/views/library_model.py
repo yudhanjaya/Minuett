@@ -14,6 +14,7 @@ COLUMNS: list[tuple[str, str]] = [
     ("artist", "Artist"),
     ("album", "Album"),
     ("source_playlist", "Playlist"),
+    ("source", "Source"),
     ("duration_ms", "Time"),
     ("genre", "Genre"),
     ("year", "Year"),
@@ -25,6 +26,10 @@ COLUMNS: list[tuple[str, str]] = [
 SEARCH_ATTRS = ("title", "artist", "album", "album_artist", "genre", "source_playlist")
 # Columns that map to file tags and can be edited inline.
 EDITABLE_ATTRS = frozenset({"track_no", "title", "artist", "album", "genre", "year"})
+
+
+SOURCE_LABELS = {"youtube": "YouTube", "youtube-music": "YouTube Music", "spotify": "Spotify",
+                 "pandora": "Pandora", "apple-music": "Apple Music", "other": "Import"}
 
 
 def format_ms(ms: int | None) -> str:
@@ -144,6 +149,8 @@ class LibraryModel(QAbstractTableModel):
                 return f"{round(value / 1000)} kbps" if value else ""
             if attr == "date_added":
                 return (value or "")[:10]
+            if attr == "source":
+                return SOURCE_LABELS.get(value or "", "Local")
             return "" if value is None else str(value)
         if role == Qt.ItemDataRole.EditRole:
             return "" if value is None else str(value)

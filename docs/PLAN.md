@@ -118,6 +118,25 @@ original sketch above:
   `yt-dlp-ejs` package (from `yt-dlp[default]`). yt-dlp enables only Deno by
   default; Antiphon passes whichever of Deno/Node/QuickJS/Bun is installed.
 
+### As built: other sources (Spotify, Pandora, files)
+
+- **Spotify links** are read from the public embed page. Since February 2026
+  Spotify's Web API only returns tracks for playlists the signed-in user
+  owns, so it isn't an option for pasted links. The embed page lists at most
+  100 tracks and is unofficial, so it may break or change.
+- **Export files** (CSV/TXT) are parsed by column name, which covers Exportify,
+  TuneMyMusic and Soundiiz, plus plain "Artist - Title" lists. Pandora has no
+  public API or playlist pages, so this is the only route for it. Entries are
+  keyed by track URI, else ISRC, else artist|title; importing a newer export of
+  the same playlist updates it.
+- **Matching** (`core/downloader/matching.py`): YouTube Music song search,
+  shortlist by title, confirm with full details, score title/artist/length;
+  fall back to regular YouTube; below 0.62 the song is "not found" rather
+  than guessed. The matched video id is stored on the entry.
+- **Schema v3**: `playlist_entries` keyed by `item_id` (source key) with the
+  matched `youtube_id` separate; `tracks.source`/`source_url` and
+  `playlists.source` record where music came from.
+
 ## b) RealPlayer-style interface
 
 Modelled on RealPlayer 10: dark charcoal and blue chrome, glossy transport bar

@@ -48,6 +48,14 @@ def _playlist(t: Track) -> str:
     return (t.source_playlist or "").strip() or NO_PLAYLIST
 
 
+_SOURCE_NAMES = {"youtube": "YouTube", "youtube-music": "YouTube Music", "spotify": "Spotify",
+                 "pandora": "Pandora", "apple-music": "Apple Music", "other": "Imported"}
+
+
+def _source(t: Track) -> str:
+    return _SOURCE_NAMES.get(t.source or "", "Local files")
+
+
 def _month_added(t: Track) -> str:
     return (t.date_added or "")[:7] or UNKNOWN
 
@@ -67,9 +75,10 @@ ARRANGEMENTS: dict[str, Arrangement] = {a.name: a for a in (
     Arrangement("Genre", (_genre, _artist)),
     Arrangement("Year", (_decade, _year), newest_first=True),
     Arrangement("Date Added", (_month_added,), newest_first=True),
+    Arrangement("Source", (_source, _playlist)),
 )}
 DEFAULT_ARRANGEMENT = "Playlist"
-_UNKNOWNS = {UNKNOWN_ARTIST, UNKNOWN_ALBUM, UNKNOWN, NO_PLAYLIST}
+_UNKNOWNS = {UNKNOWN_ARTIST, UNKNOWN_ALBUM, UNKNOWN, NO_PLAYLIST, "Local files"}
 
 
 @dataclass

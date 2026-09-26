@@ -18,7 +18,8 @@ from antiphon.ui.skin.manager import manager
 
 COLS = ["#", "Title", "Status", "Progress"]
 STATUS_TEXT = {
-    JobStatus.QUEUED: "Queued", JobStatus.DOWNLOADING: "Downloading",
+    JobStatus.QUEUED: "Queued", JobStatus.MATCHING: "Finding on YouTube Music",
+    JobStatus.DOWNLOADING: "Downloading",
     JobStatus.CONVERTING: "Converting", JobStatus.TAGGING: "Tagging",
     JobStatus.DONE: "Done", JobStatus.SKIPPED: "Skipped",
     JobStatus.FAILED: "Failed", JobStatus.CANCELLED: "Cancelled",
@@ -26,6 +27,7 @@ STATUS_TEXT = {
 }
 STATUS_COLOR = {  # theme variables
     JobStatus.DOWNLOADING: "accent", JobStatus.CONVERTING: "accent", JobStatus.TAGGING: "accent",
+    JobStatus.MATCHING: "accent",
     JobStatus.FAILED: "warning", JobStatus.QUEUED: "text-muted", JobStatus.SKIPPED: "text-muted",
     JobStatus.UNAVAILABLE: "text-muted", JobStatus.CANCELLED: "text-muted",
 }
@@ -143,7 +145,7 @@ class DownloadsView(QWidget):
         h = self.table.horizontalHeader()
         h.setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.table.setColumnWidth(0, 52)
-        self.table.setColumnWidth(2, 120)
+        self.table.setColumnWidth(2, 190)
         self.table.setColumnWidth(3, 200)
 
         self.empty = label("Nothing downloading. Import a playlist, or press Update on one "
@@ -190,6 +192,9 @@ class DownloadsView(QWidget):
             extra.append(f"{plan.unavailable} unavailable")
         if plan.live:
             extra.append(f"{plan.live} live stream{'s' if plan.live != 1 else ''} skipped")
+        if plan.truncated:
+            extra.append("Spotify's public page shows only the first 100 songs; "
+                         "import an export file for the rest")
         if plan.removed:
             extra.append(f"{plan.removed} removed on YouTube")
         tail = f" ({', '.join(extra)})" if extra else ""

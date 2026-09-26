@@ -338,7 +338,7 @@ class MainWindow(QMainWindow):
         table.setShowGrid(False)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         table.horizontalHeader().setStretchLastSection(True)
-        for col, width in ((0, 48), (1, 300), (2, 190), (3, 190), (4, 130), (5, 64)):
+        for col, width in ((0, 48), (1, 300), (2, 190), (3, 190), (4, 130), (5, 110), (6, 64)):
             table.setColumnWidth(col, width)
         table.doubleClicked.connect(self._on_table_double_click)
         table.play_requested.connect(self._play_from_table)
@@ -412,6 +412,9 @@ class MainWindow(QMainWindow):
 
         edit_menu = self.menuBar().addMenu("&Edit")
         edit_menu.addAction(self.edit_tags_action)
+        edit_menu.addSeparator()
+        edit_menu.addAction(QAction("Move Genre Tags Out of Titles…", self,
+                                    triggered=self.fix_genre_tags))
 
         view_menu = self.menuBar().addMenu("&View")
         self.toggle_queue = QAction("Show &Queue Pane", self, checkable=True, checked=True,
@@ -538,6 +541,29 @@ class MainWindow(QMainWindow):
     def _on_eq_changed(self, state) -> None:
         self.eq_filter.apply(state)   # live: GStreamer band properties are runtime-safe
         self._eq_save.start()         # write the JSON once dragging settles
+
+    def fix_genre_tags(self) -> None:
+        """Tidy tracks downloaded before genre tags were split from titles."""
+        from antiphon.core.library.cleanup import apply_genre_tag_fixes, find_genre_tag_fixes
+        fixes = find_genre_tag_fixes(self.db)
+        if not fixes:
+            QMessageBox.information(self, "Genre Tags", "No downloaded titles end in a genre tag.")
+            return
+        examples = "\n".join(f"• {f.title}  →  genre “{f.genre}”" for f in fixes[:5])
+        more = f"\n…and {len(fixes) - 5} more" if len(fixes) > 5 else ""
+        answer = QMessageBox.question(
+            self, "Genre Tags",
+            f"Move the genre tag out of {len(fixes)} title{'s' if len(fixes) != 1 else ''}?\n\n"
+            f"{examples}{more}\n\nOnly songs with no genre (or YouTube's “Music”) are changed.")
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        result = apply_genre_tag_fixes(self.db, fixes)
+        self.library_model.sync()
+        self._on_tracks_edited(result.updated)
+        msg = f"Updated {len(result.updated)} song{'s' if len(result.updated) != 1 else ''}"
+        if result.failed:
+            msg += f"; {len(result.failed)} couldn't be written"
+        self.statusBar().showMessage(msg, 8000)
 
     # --- downloads --------------------------------------------------------
 

@@ -2,23 +2,26 @@
 
 Top: one row per playlist with its own Check and Update buttons (there is
 deliberately no "update all"). Bottom: the selected playlist's songs in
-YouTube order, including ones not downloaded yet and why.
+source order, including ones not downloaded yet and why.
 """
 
 from __future__ import annotations
 
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QFont
 from PySide6.QtWidgets import (
-    QAbstractItemView, QFrame, QHBoxLayout, QHeaderView, QInputDialog, QLabel, QMessageBox,
+    QAbstractItemView, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QMessageBox,
     QSplitter, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
 from antiphon.core.library.db import (
     DONE, FAILED, LIVE, NEW, REMOVED, UNAVAILABLE, LibraryDB, Playlist, Track,
 )
+from antiphon.core.downloader.playlist import ListingError, source_of_url
+from antiphon.ui.dialogs.import_playlist import ImportPlaylistDialog
 from antiphon.ui.download_manager import DownloadManager, OpResult
 from antiphon.ui.skin.components import (
     ViewHeader, button, label, space, tune_item_view, view,
@@ -35,7 +38,9 @@ ENTRY_STATUS_COLOR = {
     NEW: "text-muted", FAILED: "warning", UNAVAILABLE: "text-muted",
     REMOVED: "text-muted", LIVE: "text-muted",
 }
-PL_COLS = ["Playlist", "Songs", "New", "Last checked", "Last updated", ""]
+PL_COLS = ["Playlist", "Source", "Songs", "New", "Last checked", "Last updated", ""]
+SOURCE_NAMES = {"youtube": "YouTube", "youtube-music": "YouTube Music", "spotify": "Spotify",
+                "pandora": "Pandora", "apple-music": "Apple Music", "other": "File import"}
 ACTIONS_COL = len(PL_COLS) - 1
 PLAYLIST_ROW_HEIGHT = 44
 
@@ -64,7 +69,7 @@ class PlaylistsView(QWidget):
 
         self.header = ViewHeader("Playlists")
         self.header.add(button("Import Playlist", "plus", "primary",
-                               "Import a YouTube or YouTube Music playlist",
+                               "Import from YouTube, YouTube Music, Spotify or an export file",
                                slot=self.import_playlist))
 
         self.tree = QTreeWidget()
@@ -87,6 +92,7 @@ class PlaylistsView(QWidget):
         self.tree.setContextMenuPolicy(Qt.ContextMenuPolicy.ActionsContextMenu)
         for text, slot in (("Play", lambda: self._play_selected(0)),
                            ("Open Folder", self._open_folder),
+                           ("Import Newer Export…", lambda: self._reimport()),
                            ("Remove from Antiphon…", self._remove)):
             self.tree.addAction(QAction(text, self.tree, triggered=slot))
 
@@ -128,9 +134,10 @@ class PlaylistsView(QWidget):
         bl.addWidget(detail)
         bl.addWidget(self.entries, 1)
 
-        self.empty = label("No playlists yet. Use Import Playlist to add one from YouTube "
-                           "or YouTube Music; the whole list is shown before anything "
-                           "downloads.", "Muted", "md")
+        self.empty = label("No playlists yet. Use Import Playlist to add one from YouTube, "
+                           "YouTube Music or Spotify, or from a Spotify or Pandora export "
+                           "file. The whole list is shown before anything downloads.",
+                           "Muted", "md")
         self.empty.setWordWrap(True)
         self.empty.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.empty.setContentsMargins(space(6), space(6), space(6), space(6))
@@ -178,7 +185,7 @@ class PlaylistsView(QWidget):
         has_any = bool(playlists)
         self._split.setVisible(has_any)
         self.empty.setVisible(not has_any)
-        yt = [p for p in playlists if p.is_youtube]
+        yt = [p for p in playlists if p.is_imported]
         if yt:
             done = sum(p.downloaded for p in yt)
             total = sum(p.total for p in yt)
@@ -195,7 +202,7 @@ class PlaylistsView(QWidget):
         cl.setContentsMargins(space(2), 0, space(3), 0)
         cl.setSpacing(space(2))
         state = self.manager.state_of(pl.id) if pl else None
-        if pl is not None and not pl.is_youtube:
+        if pl is not None and not pl.is_imported:
             return cell
         if state:
             text = {"checking": "Checking…", "updating": "Updating…", "queued": "Queued"}[state]
@@ -203,14 +210,25 @@ class PlaylistsView(QWidget):
             status.setMinimumWidth(150)
             cl.addWidget(status, 0, Qt.AlignmentFlag.AlignVCenter)
             return cell
-        check = button("Check", "refresh", "compact", "See what's new without downloading")
-        update = button("Update", "downloads", "compact", "Download songs added since the last update")
+        file_import = pl is not None and pl.is_file_import
+        if file_import:
+            # An export file can't be re-read from the web: offer a newer file instead.
+            check = button("Re-import", "refresh", "compact",
+                           "Import a newer export of this playlist")
+        else:
+            check = button("Check", "refresh", "compact", "See what's new without downloading")
+        update = button("Update", "downloads", "compact",
+                        "Download songs not downloaded yet" if file_import
+                        else "Download songs added since the last update")
         for b in (check, update):
             b.setMinimumHeight(28)
         if pl is not None:
-            check.clicked.connect(lambda _=False, pid=pl.id: self.manager.check(pid))
+            if file_import:
+                check.clicked.connect(lambda _=False, pid=pl.id: self._reimport(pid))
+            else:
+                check.clicked.connect(lambda _=False, pid=pl.id: self.manager.check(pid))
             update.clicked.connect(lambda _=False, pid=pl.id: self._update(pid))
-            check.setAccessibleName(f"Check {pl.name} for new songs")
+            check.setAccessibleName(f"{check.text()} {pl.name}")
             update.setAccessibleName(f"Update {pl.name}")
         cl.addWidget(check, 0, Qt.AlignmentFlag.AlignVCenter)
         cl.addWidget(update, 0, Qt.AlignmentFlag.AlignVCenter)
@@ -221,17 +239,21 @@ class PlaylistsView(QWidget):
         f.setWeight(QFont.Weight.DemiBold)
         item.setFont(0, f)
         item.setText(0, pl.name)
-        item.setText(1, f"{pl.downloaded} / {pl.total}" if pl.is_youtube else str(pl.total))
         muted = manager().color("text-muted")
-        if pl.is_youtube:
+        item.setText(1, SOURCE_NAMES.get(pl.source or "", "Local") if pl.is_imported else "Local")
+        if pl.is_file_import:
+            item.setToolTip(1, "Imported from an export file")
+        item.setForeground(1, muted)
+        item.setText(2, f"{pl.downloaded} / {pl.total}" if pl.is_imported else str(pl.total))
+        if pl.is_imported:
             # "New" is only as fresh as the last check.
-            item.setText(2, str(pl.pending) if pl.pending else "—")
-            item.setToolTip(2, "Songs on YouTube not downloaded yet (as of the last check)")
+            item.setText(3, str(pl.pending) if pl.pending else "—")
+            item.setToolTip(3, "Songs not downloaded yet (as of the last check)")
             if pl.pending:
-                item.setForeground(2, manager().color("accent"))
-            item.setText(3, _when(pl.last_checked))
-            item.setText(4, _when(pl.last_updated))
-            for c in (3, 4):
+                item.setForeground(3, manager().color("accent"))
+            item.setText(4, _when(pl.last_checked))
+            item.setText(5, _when(pl.last_updated))
+            for c in (4, 5):
                 item.setForeground(c, muted)
         self.tree.setItemWidget(item, ACTIONS_COL, self._actions_cell(pl))
 
@@ -251,8 +273,8 @@ class PlaylistsView(QWidget):
                 continue
             item = QTreeWidgetItem(self.entries)
             item.setText(0, "" if e.position is None else str(e.position + 1))
-            item.setText(1, (t.title if t else None) or e.title or e.youtube_id or "")
-            item.setText(2, (t.artist if t else "") or "")
+            item.setText(1, (t.title if t else None) or e.title or e.youtube_id or e.item_id or "")
+            item.setText(2, (t.artist if t else None) or e.artist or "")
             item.setText(3, ENTRY_STATUS_TEXT.get(e.status, e.status))
             if e.status in (FAILED, UNAVAILABLE) and e.error:
                 item.setToolTip(3, e.error)
@@ -272,22 +294,48 @@ class PlaylistsView(QWidget):
     # --- actions ----------------------------------------------------------
 
     def import_playlist(self) -> None:
-        url, ok = QInputDialog.getText(
-            self, "Import Playlist",
-            "Paste a YouTube or YouTube Music playlist link.\n"
-            "The whole list is shown before anything downloads.")
-        if not ok or not url.strip():
+        dlg = ImportPlaylistDialog(self)
+        if dlg.exec() != ImportPlaylistDialog.DialogCode.Accepted:
+            return
+        if dlg.mode == "file":
+            self.manager.import_file(dlg.path, dlg.source, dlg.name)
+            self.show_downloads.emit()
             return
         from antiphon.core.downloader.playlist import normalise_url
-        existing = self.db.playlist_by_url(normalise_url(url))
+        url = dlg.url
+        key = url
+        if source_of_url(url) == "spotify":
+            from antiphon.core.downloader.sources.spotify import canonical_url, parse_spotify_url
+            try:
+                key = canonical_url(*parse_spotify_url(url))
+            except ListingError:
+                pass
+        else:
+            key = normalise_url(url)
+        existing = self.db.playlist_by_url(key)
         if existing:
             QMessageBox.information(
                 self, "Already Imported",
                 f"“{existing.name}” is already in your library. Use its Update button "
                 "to fetch songs added since.")
             return
-        self.manager.import_url(url.strip())
+        self.manager.import_url(url)
         self.show_downloads.emit()
+
+    def _reimport(self, pid: int | None = None) -> None:
+        """Import a newer export file into an existing file-imported playlist."""
+        pl = self.db.get_playlist(pid if pid is not None else self.current_playlist_id() or -1)
+        if pl is None or not pl.is_file_import:
+            QMessageBox.information(self, "Import Newer Export",
+                                    "Only playlists imported from a file can be re-imported. "
+                                    "Linked playlists update with Check and Update.")
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self, f"Newer Export of “{pl.name}”", str(Path.home() / "Downloads"),
+            "Playlist exports (*.csv *.tsv *.txt);;All files (*)")
+        if path:
+            self.manager.import_file(path, pl.source or "other", pl.name)
+            self.show_downloads.emit()
 
     def _update(self, pid: int) -> None:
         self.manager.update(pid)

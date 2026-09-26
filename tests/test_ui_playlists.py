@@ -18,7 +18,7 @@ import antiphon.ui.download_manager as dm  # noqa: E402
 from antiphon.core.downloader.playlist import Listing, RemoteEntry  # noqa: E402
 from antiphon.core.downloader.worker import Downloader, Preferences  # noqa: E402
 from antiphon.core.library.db import LibraryDB  # noqa: E402
-from antiphon.ui.views.playlists_view import PlaylistsView  # noqa: E402
+from antiphon.ui.views.playlists_view import ACTIONS_COL, PlaylistsView  # noqa: E402
 
 URL_A = "https://www.youtube.com/playlist?list=PLaaaaaaaaaa"
 URL_B = "https://www.youtube.com/playlist?list=PLbbbbbbbbbb"
@@ -73,7 +73,7 @@ def wait_for(manager, n_ops=1, timeout=30000):
 
 
 def row_buttons(view, row):
-    cell = view.tree.itemWidget(view.tree.topLevelItem(row), 5)
+    cell = view.tree.itemWidget(view.tree.topLevelItem(row), ACTIONS_COL)
     return {b.text(): b for b in cell.findChildren(QPushButton)}
 
 
@@ -102,12 +102,13 @@ def test_import_then_update_one_playlist_at_a_time(app, tmp_path, fake_youtube):
 
         # ...Check on Road Trip only reports, doesn't download.
         row_buttons(view, 1)["Check"].click()
-        assert view.tree.itemWidget(view.tree.topLevelItem(1), 5).findChildren(QPushButton) == []
+        assert view.tree.itemWidget(view.tree.topLevelItem(1), ACTIONS_COL).findChildren(QPushButton) == []
         (r,) = wait_for(manager)
         assert r.kind == "check" and len(r.plan.to_download) == 1 and r.downloaded == 0
         view.refresh()
-        assert view.tree.topLevelItem(1).text(2) == "1"      # New
-        assert view.tree.topLevelItem(1).text(1) == "1 / 2"  # Songs
+        assert view.tree.topLevelItem(1).text(3) == "1"      # New
+        assert view.tree.topLevelItem(1).text(2) == "1 / 2"  # Songs
+        assert view.tree.topLevelItem(1).text(1) == "YouTube"
 
         # ...Update on Road Trip fetches only its new song; Chill is untouched.
         row_buttons(view, 1)["Update"].click()

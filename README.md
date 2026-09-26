@@ -31,6 +31,16 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
       playlists is downloaded once and linked into both. Downloads view shows
       per-song progress with Cancel and Retry Failed. The playlist name is a
       sortable, searchable library column.
+- [x] Spotify and Pandora playlists. Paste a Spotify playlist or album link
+      (the public page lists up to 100 songs), or import an export file:
+      Exportify for Spotify; TuneMyMusic or Soundiiz for Pandora, Apple Music
+      and others. Songs are matched on YouTube Music by title, artist and
+      length (Spotify's and Pandora's audio is DRM-protected and never
+      downloaded); weak matches are reported instead of guessed. Every track
+      records its source (YouTube, YouTube Music, Spotify, Pandora…) and link.
+- [x] Opus by default at the best available quality: YouTube's Opus streams
+      are copied untouched, anything else is converted once at 256 kbps.
+      Original format and MP3 V0 are options in Preferences.
 - [x] Phase 4: 10-band parametric equalizer in playbin's audio-filter slot.
       Gain slider (±12 dB), frequency knob and Q knob per band, preamp, on/off,
       live response curve, clipping hint, JSON presets (Flat, Rock, Vocal, Bass

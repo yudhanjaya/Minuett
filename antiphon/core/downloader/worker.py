@@ -23,6 +23,7 @@ from antiphon.core.library.db import DONE, FAILED, LIVE, UNAVAILABLE, Entry, Lib
 from antiphon.core.library.scanner import scan_file
 from antiphon.core.library.tags import TagError, write_tags
 
+from .matching import Matcher, Target
 from .naming import parse_title, safe_filename
 from .playlist import base_options
 
@@ -31,6 +32,7 @@ log = logging.getLogger(__name__)
 
 class JobStatus(Enum):
     QUEUED = "queued"
+    MATCHING = "matching"       # finding the song on YouTube Music
     DOWNLOADING = "downloading"
     CONVERTING = "converting"
     TAGGING = "tagging"
@@ -51,7 +53,10 @@ class Job:
 
     @property
     def title(self) -> str:
-        return self.entry.title or self.entry.youtube_id or "?"
+        e = self.entry
+        if e.title and e.artist and not e.youtube_id:
+            return f"{e.artist} – {e.title}"
+        return e.title or e.youtube_id or e.item_id or "?"
 
 
 @dataclass
@@ -83,6 +88,8 @@ _UNAVAILABLE = ("Video unavailable", "This video is not available", "Private vid
                 "Sign in to confirm your age", "This video has been removed")
 UNAVAILABLE_MESSAGE = ("YouTube won't play this video here: it's blocked in your region, "
                        "removed, private or restricted. Update will check it again.")
+NO_MATCH_MESSAGE = ("Couldn't find this song on YouTube Music with a matching title, artist "
+                    "and length. Update will search again.")
 
 
 def classify_error(message: str) -> str:
@@ -155,6 +162,18 @@ def ytdlp_options(folder: Path, prefs: Preferences) -> dict:
     return opts
 
 
+def tags_from_catalog(entry: Entry, info: dict) -> dict[str, object]:
+    """Tags for a song matched from Spotify/Pandora/etc.: the source's own
+    metadata is authoritative; YouTube fills in only what it lacks."""
+    tags = tags_from_info(info, entry.title)
+    tags["title"] = entry.title or tags.get("title")
+    if entry.artist:
+        tags["artist"] = entry.artist
+    if entry.album:
+        tags["album"] = entry.album
+    return tags
+
+
 def tags_from_info(info: dict, fallback_title: str | None) -> dict[str, object]:
     """Prefer YouTube Music's structured metadata; else parse the video title."""
     # yt-dlp's FFmpegMetadata writes the *upload* date; that's not a release
@@ -198,6 +217,7 @@ class Downloader:
         prefs: Preferences,
         url_for: Callable[[Entry], str] = youtube_url,
         extra_opts: dict | None = None,
+        matcher: Matcher | None = None,
     ) -> None:
         self.db = db
         self.playlist_id = playlist_id
@@ -206,6 +226,7 @@ class Downloader:
         self.extra_opts = extra_opts or {}
         self._cancel = threading.Event()
         self.retry_delays: tuple[float, ...] = (5.0, 20.0)  # seconds; one retry per entry
+        self._matcher = matcher
 
     def cancel(self) -> None:
         self._cancel.set()
@@ -234,7 +255,53 @@ class Downloader:
         if pl and not self.cancelled:
             self.db.touch_playlist(self.playlist_id, "last_updated")
 
+    @property
+    def matcher(self) -> Matcher:
+        if self._matcher is None:
+            self._matcher = Matcher(base_options())
+        return self._matcher
+
+    def _match(self, i: int, job: Job, on_update) -> bool:
+        """Find the YouTube recording for a Spotify/Pandora/file entry.
+        Returns False (and marks the entry) when there's no good match."""
+        import dataclasses
+        e = job.entry
+        job.status, job.error = JobStatus.MATCHING, None
+        on_update(i, job)
+        try:
+            match = self.matcher.find(Target(e.title or "", e.artist, e.album,
+                                             e.duration_ms / 1000 if e.duration_ms else None))
+        except Exception as ex:  # noqa: BLE001 - a search hiccup shouldn't stop the queue
+            match, err = None, str(ex)
+        else:
+            err = None
+        if self.cancelled:
+            job.status = JobStatus.CANCELLED
+            return False
+        if match is None:
+            job.status = JobStatus.UNAVAILABLE if err is None else JobStatus.FAILED
+            job.error = NO_MATCH_MESSAGE if err is None else err
+            self.db.set_entry(e.id, status=UNAVAILABLE if err is None else FAILED,
+                              error=job.error)
+            self.db.commit()
+            return False
+        vid = match.candidate.video_id
+        self.db.set_entry(e.id, youtube_id=vid)
+        existing = self.db.find_by_youtube_id(vid)
+        if existing is not None:  # already in the library via another playlist
+            self.db.set_entry(e.id, track_id=existing.id, status=DONE, error=None)
+            self.db.commit()
+            job.track_id, job.status = existing.id, JobStatus.DONE
+            return False
+        self.db.commit()
+        job.entry = dataclasses.replace(e, youtube_id=vid)
+        return True
+
     def _run_one(self, i: int, job: Job, folder: Path, on_update) -> None:
+        if not job.entry.youtube_id:
+            if not self._match(i, job, on_update):
+                on_update(i, job)
+                return
         attempts = len(self.retry_delays) + 1
         for attempt in range(attempts):
             outcome, error = self._attempt(i, job, folder, on_update)
@@ -300,10 +367,13 @@ class Downloader:
 
             job.status = JobStatus.TAGGING
             on_update(i, job)
+            e = job.entry
+            catalog = e.item_id is not None and e.item_id != e.youtube_id
             try:
-                write_tags(path, tags_from_info(info, job.entry.title))
-            except TagError as e:
-                log.warning("tagging %s: %s", path, e)  # keep the file; tags are fixable later
+                write_tags(path, tags_from_catalog(e, info) if catalog
+                           else tags_from_info(info, e.title))
+            except TagError as err:
+                log.warning("tagging %s: %s", path, err)  # keep the file; tags are fixable later
             track_id = scan_file(self.db, path)
             track = self.db.get(track_id)
             pl = self.db.get_playlist(self.playlist_id)
@@ -311,6 +381,12 @@ class Downloader:
                 "youtube_id": job.entry.youtube_id,
                 "source_playlist": (track.source_playlist if track and track.source_playlist
                                     else pl.name if pl else None),
+                # Where the song came from: the playlist's service, and the
+                # track's page there (a Spotify link, or the YouTube video).
+                "source": (track.source if track and track.source
+                           else (pl.source if pl and pl.source else "youtube")),
+                "source_url": (track.source_url if track and track.source_url
+                               else job.entry.source_url or youtube_url(job.entry)),
             })
             self.db.set_entry(job.entry.id, track_id=track_id, status=DONE, error=None)
             self.db.commit()

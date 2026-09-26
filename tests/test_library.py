@@ -59,14 +59,12 @@ def test_upsert_preserves_play_stats():
     assert t.date_added == added and t.last_played
 
 
-def test_playlists_keep_order_and_resync():
+def test_local_playlist_order():
     db = LibraryDB(":memory:")
     ids = [db.upsert(Track(path=f"/{i}.mp3", title=str(i))) for i in range(3)]
-    pid = db.save_playlist("Mix", [ids[2], ids[0]], source_url="https://y/list")
+    pid = db.save_playlist("Mix", [ids[2], ids[0]])
     assert [t.title for t in db.playlist_tracks(pid)] == ["2", "0"]
-    pid2 = db.save_playlist("Mix", [ids[2], ids[0], ids[1]], source_url="https://y/list")
-    assert pid2 == pid
-    assert [t.title for t in db.playlist_tracks(pid)] == ["2", "0", "1"]
+    assert not db.get_playlist(pid).is_youtube
 
 
 def test_update_fields_rejects_unknown():

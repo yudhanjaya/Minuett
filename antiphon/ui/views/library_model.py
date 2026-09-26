@@ -13,6 +13,7 @@ COLUMNS: list[tuple[str, str]] = [
     ("title", "Title"),
     ("artist", "Artist"),
     ("album", "Album"),
+    ("source_playlist", "Playlist"),
     ("duration_ms", "Time"),
     ("genre", "Genre"),
     ("year", "Year"),
@@ -21,7 +22,7 @@ COLUMNS: list[tuple[str, str]] = [
     ("play_count", "Plays"),
     ("date_added", "Added"),
 ]
-SEARCH_ATTRS = ("title", "artist", "album", "album_artist", "genre")
+SEARCH_ATTRS = ("title", "artist", "album", "album_artist", "genre", "source_playlist")
 # Columns that map to file tags and can be edited inline.
 EDITABLE_ATTRS = frozenset({"track_no", "title", "artist", "album", "genre", "year"})
 

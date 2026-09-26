@@ -1,0 +1,207 @@
+import sqlite3
+from pathlib import Path
+
+import pytest
+
+from antiphon.core.downloader.playlist import (
+    Listing, RemoteEntry, listing_from_info, normalise_url, reconcile,
+)
+from antiphon.core.downloader.worker import (
+    Downloader, JobStatus, Preferences, jobs_for, retry_failed, tags_from_info,
+)
+from antiphon.core.library.db import DONE, FAILED, NEW, REMOVED, UNAVAILABLE, LibraryDB, Track
+
+URL = "https://www.youtube.com/playlist?list=PLtest1234567"
+
+
+def listing(*items, title="Road Trip"):
+    return Listing(URL, "PLtest1234567", title, None,
+                   [RemoteEntry(i, vid, t) for i, (vid, t) in enumerate(items)])
+
+
+@pytest.fixture
+def db():
+    return LibraryDB(":memory:")
+
+
+def new_playlist(db, name="Road Trip"):
+    return db.add_youtube_playlist(name, URL, "PLtest1234567", f"/music/{name}")
+
+
+def test_normalise_url():
+    assert normalise_url("https://www.youtube.com/watch?v=abc&list=PLtest1234567&index=3") == URL
+    assert normalise_url("  https://youtube.com/playlist?list=PLtest1234567 ") == URL
+    assert normalise_url("https://example.com/x") == "https://example.com/x"
+
+
+def test_add_is_idempotent_by_url(db):
+    assert new_playlist(db) == new_playlist(db)
+
+
+def test_first_sync_queues_everything_available(db):
+    pid = new_playlist(db)
+    plan = reconcile(db, pid, listing(("a", "A - One"), ("b", "[Private video]"), ("c", "C - Three")))
+    assert [e.youtube_id for e in plan.to_download] == ["a", "c"]
+    assert plan.unavailable == 1
+    pl = db.get_playlist(pid)
+    assert (pl.total, pl.downloaded, pl.pending) == (3, 0, 2)
+    assert pl.last_checked
+
+
+def mark_downloaded(db, pid, vid, path):
+    tid = db.upsert(Track(path=path, title=vid, youtube_id=vid, source_playlist="Road Trip"))
+    entry = next(e for e in db.entries(pid) if e.youtube_id == vid)
+    db.set_entry(entry.id, track_id=tid, status=DONE)
+    db.commit()
+    return tid
+
+
+def test_update_only_fetches_new_and_tracks_removals(db):
+    pid = new_playlist(db)
+    reconcile(db, pid, listing(("a", "One"), ("b", "Two"), ("c", "Three")))
+    for vid in "abc":
+        mark_downloaded(db, pid, vid, f"/music/{vid}.opus")
+
+    # On YouTube: "b" removed, "d" added at the top, order changed.
+    plan = reconcile(db, pid, listing(("d", "Four"), ("c", "Three"), ("a", "One")))
+    assert [e.youtube_id for e in plan.to_download] == ["d"]
+    assert (plan.kept, plan.removed) == (2, 1)
+    assert [t.youtube_id for t in db.playlist_tracks(pid)] == ["c", "a"]  # d not downloaded yet
+    removed = [e for e in db.entries(pid, include_removed=True) if e.status == REMOVED]
+    assert [e.youtube_id for e in removed] == ["b"]
+    assert db.find_by_youtube_id("b") is not None  # file stays in the library
+
+    # Re-adding a removed video brings it back without downloading again.
+    plan = reconcile(db, pid, listing(("d", "Four"), ("b", "Two")))
+    assert [e.youtube_id for e in plan.to_download] == ["d"]
+
+
+def test_video_in_two_playlists_is_linked_not_redownloaded(db):
+    p1 = new_playlist(db)
+    reconcile(db, p1, listing(("a", "One")))
+    mark_downloaded(db, p1, "a", "/music/a.opus")
+    p2 = db.add_youtube_playlist("Other", URL + "x", "PLother", "/music/Other")
+    plan = reconcile(db, p2, Listing(URL + "x", "PLother", "Other", None, [RemoteEntry(0, "a", "One")]))
+    assert plan.to_download == [] and plan.linked == 1
+    assert [t.youtube_id for t in db.playlist_tracks(p2)] == ["a"]
+
+
+def test_failed_entries_are_retried_on_update(db):
+    pid = new_playlist(db)
+    plan = reconcile(db, pid, listing(("a", "One")))
+    db.set_entry(plan.to_download[0].id, status=FAILED, error="boom"); db.commit()
+    plan = reconcile(db, pid, listing(("a", "One")))
+    assert [e.status for e in plan.to_download] == [FAILED]
+    assert db.get_playlist(pid).pending == 1
+
+
+def test_rename_upstream_carries_playlist_column(db):
+    pid = new_playlist(db)
+    reconcile(db, pid, listing(("a", "One")))
+    tid = mark_downloaded(db, pid, "a", "/music/a.opus")
+    plan = reconcile(db, pid, listing(("a", "One"), title="Road Trip 2026"))
+    assert plan.renamed_from == "Road Trip"
+    assert db.get_playlist(pid).name == "Road Trip 2026"
+    assert db.get(tid).source_playlist == "Road Trip 2026"
+
+
+def test_deleted_track_is_downloaded_again(db):
+    pid = new_playlist(db)
+    reconcile(db, pid, listing(("a", "One")))
+    mark_downloaded(db, pid, "a", "/music/a.opus")
+    db.remove_paths(["/music/a.opus"])
+    plan = reconcile(db, pid, listing(("a", "One")))
+    assert [e.status for e in plan.to_download] == [NEW]
+
+
+def test_unavailable_then_restored(db):
+    pid = new_playlist(db)
+    reconcile(db, pid, listing(("a", "[Deleted video]")))
+    assert db.entries(pid)[0].status == UNAVAILABLE
+    plan = reconcile(db, pid, listing(("a", "Back")))
+    assert [e.youtube_id for e in plan.to_download] == ["a"]
+
+
+def test_listing_from_flat_info():
+    info = {"_type": "playlist", "id": "PLx", "title": "T", "uploader": "U",
+            "entries": [{"id": "a", "title": "A"}, None, {"id": "b", "title": "B", "channel": "C"}]}
+    lst = listing_from_info("https://www.youtube.com/playlist?list=PLxxxxxxxxxx", info)
+    assert [(e.position, e.video_id) for e in lst.entries] == [(0, "a"), (1, "b")]
+    assert lst.entries[1].uploader == "C"
+
+
+def test_v1_database_migrates(tmp_path):
+    path = tmp_path / "old.db"
+    conn = sqlite3.connect(path)
+    conn.executescript("""
+        CREATE TABLE tracks (id INTEGER PRIMARY KEY, path TEXT UNIQUE NOT NULL, title TEXT,
+          artist TEXT, album TEXT, album_artist TEXT, genre TEXT, year INTEGER, track_no INTEGER,
+          disc_no INTEGER, duration_ms INTEGER, codec TEXT, bitrate INTEGER, youtube_id TEXT,
+          source_playlist TEXT, date_added TEXT, play_count INTEGER DEFAULT 0, last_played TEXT,
+          rating INTEGER, mtime REAL);
+        CREATE TABLE playlists (id INTEGER PRIMARY KEY, name TEXT NOT NULL, source_url TEXT UNIQUE);
+        CREATE TABLE playlist_items (playlist_id INTEGER, position INTEGER, track_id INTEGER);
+        INSERT INTO tracks (id, path, title) VALUES (1, '/a.mp3', 'A');
+        INSERT INTO playlists VALUES (1, 'Old', NULL);
+        INSERT INTO playlist_items VALUES (1, 0, 1);
+        PRAGMA user_version = 1;
+    """)
+    conn.close()
+    db = LibraryDB(path)
+    assert [t.title for t in db.playlist_tracks(1)] == ["A"]
+    assert db.get_playlist(1).folder is None
+
+
+# --- downloader against local files (no network) ---------------------------
+
+def test_tags_from_info_prefers_youtube_music():
+    info = {"title": "whatever", "track": "Song", "artists": ["A", "B"], "album": "LP",
+            "release_year": 2019}
+    assert tags_from_info(info, None) == {"year": 2019, "title": "Song", "artist": "A, B", "album": "LP"}
+    assert tags_from_info({"title": "X - Y (Official Video)"}, None) == {"year": None, "artist": "X", "title": "Y"}
+
+
+def test_downloader_end_to_end_local(tmp_path, tone, db):
+    src = tmp_path / "src"
+    src.mkdir()
+    tone(src / "a.webm".replace(".webm", ".opus"))  # make an opus, then wrap as webm
+    import subprocess
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-i", str(src / "a.opus"), "-c", "copy",
+                    str(src / "Band - Song (Official Video).webm")], check=True)
+    pid = db.add_youtube_playlist("Mix", URL, "PLtest1234567", str(tmp_path / "out" / "Mix"))
+    plan = reconcile(db, pid, listing(("ok", "Band - Song (Official Video)"), ("bad", "Missing"),
+                                      title="Mix"))
+    urls = {"ok": (src / "Band - Song (Official Video).webm").as_uri(),
+            "bad": (src / "nope.webm").as_uri()}
+    dl = Downloader(db, pid, Preferences(tmp_path / "out", sleep_max=0),
+                    url_for=lambda e: urls[e.youtube_id], extra_opts={"enable_file_urls": True})
+    jobs = jobs_for(plan.to_download)
+    seen = []
+    dl.run(jobs, lambda i, j: seen.append((i, j.status)))
+
+    assert [j.status for j in jobs] == [JobStatus.DONE, JobStatus.FAILED]
+    assert (0, JobStatus.TAGGING) in seen
+    t = db.get(jobs[0].track_id)
+    assert (t.artist, t.title, t.codec, t.youtube_id, t.source_playlist) == (
+        "Band", "Song", "opus", "ok", "Mix")
+    assert t.year is None
+    assert Path(t.path).parent == tmp_path / "out" / "Mix"
+    pl = db.get_playlist(pid)
+    assert (pl.downloaded, pl.pending) == (1, 1) and pl.last_updated
+    assert jobs[1].error
+
+    # Retry Failed re-runs only the failed row.
+    urls["bad"] = urls["ok"]
+    retry_failed(jobs)
+    assert [j.status for j in jobs] == [JobStatus.DONE, JobStatus.QUEUED]
+
+
+def test_cancel_stops_queue(tmp_path, db):
+    pid = db.add_youtube_playlist("Mix", URL, "PLtest1234567", str(tmp_path / "Mix"))
+    plan = reconcile(db, pid, listing(("a", "A"), ("b", "B"), title="Mix"))
+    dl = Downloader(db, pid, Preferences(tmp_path, sleep_max=0), url_for=lambda e: "file:///nope")
+    dl.cancel()
+    jobs = jobs_for(plan.to_download)
+    dl.run(jobs, lambda i, j: None)
+    assert all(j.status is JobStatus.CANCELLED for j in jobs)
+    assert db.get_playlist(pid).pending == 2  # nothing marked failed

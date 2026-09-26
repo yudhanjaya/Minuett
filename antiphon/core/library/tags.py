@@ -36,6 +36,7 @@ EASY_KEYS = {
 }
 
 _LEADING_INT = re.compile(r"\s*(\d+)")
+_YEAR = re.compile(r"\s*(\d{4})")
 
 
 class TagError(Exception):
@@ -94,7 +95,12 @@ def read_tags(path: str | Path) -> TagInfo:
         raw = str(values[0]).strip()
         if not raw:
             continue
-        if ours in ("year", "track_no", "disc_no"):
+        if ours == "year":
+            # "2019", "2019-04-01" and yt-dlp's "20190401" all start with the year.
+            m = _YEAR.match(raw)
+            if m:
+                tags[ours] = int(m.group(1))
+        elif ours in ("track_no", "disc_no"):
             num = _leading_int(raw)
             if num is not None:
                 tags[ours] = num

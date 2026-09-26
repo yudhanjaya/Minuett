@@ -8,7 +8,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
 
 ## Status
 
-**Phases 1–2 of 5 done: playback, library scanner, metadata editing.**
+**Phases 1–3 of 5 done: playback, library, metadata editing, playlist downloader.**
 
 - [x] GStreamer playbin wrapper: queue, gapless transitions, repeat, seek,
       volume, broken files skipped. Bus polled from a 50 ms `QTimer`.
@@ -21,7 +21,14 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
       inline; select rows and press Ctrl+E for the batch editor with cover art
       (view, replace, remove). Files are written first and the database only
       updates on success. Enter, or double-clicking a read-only column, plays.
-- [ ] Phase 3: playlist downloader (yt-dlp)
+- [x] Phase 3: playlist-based downloader (yt-dlp). Import a YouTube playlist
+      (Ctrl+I); every imported playlist is tracked and has its own **Check**
+      (see what's new) and **Update** (download only new songs) buttons in
+      Playlists; there is deliberately no "update all". Songs removed on
+      YouTube leave the playlist but stay in your library; a video in two
+      playlists is downloaded once and linked into both. Downloads view shows
+      per-song progress with Cancel and Retry Failed. The playlist name is a
+      sortable, searchable library column.
 - [ ] Phase 4: parametric equalizer
 - [ ] Phase 5: RealPlayer skin
 - [ ] Flatpak packaging
@@ -33,6 +40,10 @@ System packages (Debian/Ubuntu names):
 ```bash
 sudo apt install python3-gi gir1.2-gstreamer-1.0 gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav ffmpeg
 ```
+
+YouTube downloads also need a JavaScript runtime that yt-dlp supports: Deno,
+Node.js, QuickJS or Bun. Antiphon uses whichever is installed (see
+File ▸ Preferences).
 
 Then create a virtualenv that can see the system PyGObject:
 

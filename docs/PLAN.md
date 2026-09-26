@@ -87,6 +87,37 @@ verify current requirements when building this phase. Downloading from YouTube
 is against its terms outside permitted cases — personal use of content you have
 the right to keep.
 
+### As built: playlist-based library and per-playlist updates
+
+The library is organised around imported playlists. Changes from the
+original sketch above:
+
+- **No `download_archive`.** The database records every remote entry
+  (`playlist_entries`: position, video ID, status, linked track). An update
+  re-reads the listing and downloads only entries that are `new` or `failed`.
+  The archive is keyed only by video ID, so it would skip a video that
+  appears in a second playlist; instead that video is linked, not
+  re-downloaded.
+- **Each playlist is updated on its own.** Every playlist row has **Check**
+  (fetch the listing, show how many songs are new, download nothing) and
+  **Update** (check, then download the new ones). Operations queue and run one
+  at a time. There is no "update all".
+- **Upstream changes:** reordering is mirrored; removed videos drop out of
+  the playlist (status `removed`) but keep their files and library rows;
+  deleted/private videos are `unavailable`; a playlist renamed on YouTube is
+  renamed here, and its tracks' Playlist column follows.
+- **Files:** `<download root>/<playlist>/<title> [<video id>].<ext>`. No index
+  in the file name, because order lives in the database. The folder is fixed
+  at import so renames don't split it.
+- **Audio:** `FFmpegExtractAudio` with `preferredcodec: "best"` copies
+  Opus/AAC without re-encoding; MP3 is a preference.
+- **Tags:** YouTube Music's own track/artist/album fields when present,
+  otherwise parsed from the video title. The upload date is not written as
+  the year.
+- **JavaScript runtime:** yt-dlp 2026.x needs one for YouTube, plus the
+  `yt-dlp-ejs` package (from `yt-dlp[default]`). yt-dlp enables only Deno by
+  default; Antiphon passes whichever of Deno/Node/QuickJS/Bun is installed.
+
 ## b) RealPlayer-style interface
 
 Modelled on RealPlayer 10: dark charcoal and blue chrome, glossy transport bar
@@ -147,6 +178,6 @@ on/off toggle, JSON presets (Flat, Rock, Vocal, Bass Boost, Treble Cut).
 
 1. Playback and library scanner. ✓
 2. Metadata editing. ✓
-3. Downloader. ← **next**
-4. Equalizer.
+3. Downloader. ✓ (playlist-based sync, see below)
+4. Equalizer. ← **next**
 5. Skin pass, once functionality is stable.

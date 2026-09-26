@@ -13,7 +13,7 @@ dependencies = [
   "PyGObject>=3.46",
   "mutagen>=1.47",
   "watchdog>=4.0",
-  "yt-dlp",
+  "yt-dlp[default]",  # [default] brings yt-dlp-ejs, needed for YouTube
 ]
 
 [project.optional-dependencies]

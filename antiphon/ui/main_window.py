@@ -18,7 +18,12 @@ from antiphon.core.library.db import LibraryDB, Track
 from antiphon.core.library.scanner import scan
 from antiphon.core.paths import library_db_path
 from antiphon.core.player import Player, QueueItem, State
+from . import ytdlp_update
+from .dialogs.preferences import PreferencesDialog, load_preferences
 from .dialogs.tag_editor import TagEditorDialog
+from .download_manager import DownloadManager, OpResult
+from .views.downloads_view import DownloadsView
+from .views.playlists_view import PlaylistsView
 from .views.library_model import (
     COLUMNS, EDITABLE_ATTRS, LibraryFilterProxy, LibraryModel, format_ms,
 )
@@ -156,9 +161,23 @@ class MainWindow(QMainWindow):
         self.proxy = LibraryFilterProxy()
         self.proxy.setSourceModel(self.library_model)
         self.library_view = self._build_library_view()
+
+        self.downloads = DownloadManager(
+            self.db_path, lambda: load_preferences(self.settings), self)
+        self.downloads.plan_ready.connect(lambda *_: self._ensure_download_root_scanned())
+        self.downloads.job_updated.connect(self._on_download_job)
+        self.downloads.op_finished.connect(self._on_download_finished)
+        self.playlists_view = PlaylistsView(self.db, self.downloads)
+        self.playlists_view.play_tracks.connect(self.play_tracks)
+        self.playlists_view.show_downloads.connect(
+            lambda: self.nav.setCurrentRow(NAV_ITEMS.index("Downloads")))
+        self.downloads_view = DownloadsView(self.db, self.downloads)
+
         self.views: dict[str, QWidget] = {}
+        built = {"My Library": self.library_view, "Playlists": self.playlists_view,
+                 "Downloads": self.downloads_view}
         for name in NAV_ITEMS:
-            w = self.library_view if name == "My Library" else self._placeholder(name)
+            w = built.get(name) or self._placeholder(name)
             self.views[name] = w
             self.stack.addWidget(w)
         self.nav.currentTextChanged.connect(lambda n: self.stack.setCurrentWidget(self.views[n]))
@@ -264,8 +283,15 @@ class MainWindow(QMainWindow):
                          triggered=self.rescan)
         quit_ = QAction("&Quit", self, shortcut=QKeySequence.StandardKey.Quit,
                         triggered=self.close)
-        for a in (add, rescan):
+        import_pl = QAction("&Import YouTube Playlist…", self, shortcut=QKeySequence("Ctrl+I"),
+                            triggered=lambda: (self.nav.setCurrentRow(NAV_ITEMS.index("Playlists")),
+                                               self.playlists_view.import_playlist()))
+        prefs = QAction("&Preferences…", self, shortcut=QKeySequence.StandardKey.Preferences,
+                        triggered=lambda: PreferencesDialog(self.settings, self).exec())
+        for a in (import_pl, add, rescan):
             file_menu.addAction(a)
+        file_menu.addSeparator()
+        file_menu.addAction(prefs)
         file_menu.addSeparator()
         file_menu.addAction(quit_)
 
@@ -288,6 +314,11 @@ class MainWindow(QMainWindow):
             ("Previous", "Ctrl+Left", self.player.previous),
         ):
             play_menu.addAction(QAction(text, self, shortcut=QKeySequence(key), triggered=slot))
+
+        help_menu = self.menuBar().addMenu("&Help")
+        help_menu.addAction(QAction(
+            "Check for &yt-dlp Update…", self,
+            triggered=lambda: ytdlp_update.check_for_update(self, lambda: self.downloads.running)))
 
     # --- library ----------------------------------------------------------
 
@@ -369,9 +400,35 @@ class MainWindow(QMainWindow):
         rows = range(self.proxy.rowCount())
         tracks: list[Track] = [
             self.proxy.index(r, 0).data(LibraryModel.TrackRole) for r in rows]
+        self.play_tracks(tracks, proxy_index.row())
+
+    def play_tracks(self, tracks: list[Track], start: int = 0) -> None:
         self._track_cache = {t.id: t for t in tracks}
         items = [QueueItem(t.path, t.id) for t in tracks]
-        self.player.set_queue(items, start=proxy_index.row())
+        self.player.set_queue(items, start=start)
+
+    # --- downloads --------------------------------------------------------
+
+    def _ensure_download_root_scanned(self) -> None:
+        """Keep the download folder among library folders, so rescans cover it."""
+        root = str(load_preferences(self.settings).music_root)
+        folders = self.folders()
+        if root not in folders:
+            self.settings.setValue("library/folders", folders + [root])
+
+    def _on_download_job(self, _i: int, job) -> None:
+        if job.status.value == "done":
+            self.library_model.reload()
+
+    def _on_download_finished(self, r: OpResult) -> None:
+        self.library_model.reload()
+        if r.error:
+            self.statusBar().showMessage(f"Playlist error: {r.error}", 10000)
+        elif r.plan is not None and r.kind == "check":
+            n = len(r.plan.to_download)
+            self.statusBar().showMessage(
+                f"{n} new song{'s' if n != 1 else ''} available" if n else "Playlist is up to date",
+                8000)
 
     # --- player feedback --------------------------------------------------
 
@@ -452,6 +509,13 @@ class MainWindow(QMainWindow):
         super().keyPressEvent(event)
 
     def closeEvent(self, event) -> None:
+        if self.downloads.running:
+            answer = QMessageBox.question(
+                self, "Quit", "A playlist is still downloading. Stop it and quit?")
+            if answer != QMessageBox.StandardButton.Yes:
+                event.ignore()
+                return
+        self.downloads.shutdown()
         self.timer.stop()
         self.player.shutdown()
         self.db.close()

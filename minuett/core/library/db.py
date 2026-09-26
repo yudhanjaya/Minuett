@@ -308,8 +308,12 @@ class LibraryDB:
     _PLAYLIST_SELECT = """
         SELECT p.*,
           COUNT(e.id) FILTER (WHERE e.position IS NOT NULL AND e.status != 'excluded') AS total,
-          COUNT(e.id) FILTER (WHERE e.position IS NOT NULL AND e.status = 'done') AS downloaded,
-          COUNT(e.id) FILTER (WHERE e.position IS NOT NULL AND e.status IN ('new', 'failed')) AS pending
+          COUNT(e.id) FILTER (WHERE e.position IS NOT NULL AND e.status = 'done'
+                              AND e.track_id IS NOT NULL) AS downloaded,
+          -- "done" but its track is gone (file deleted outside Minuett): the
+          -- next update downloads it again, so it counts as pending.
+          COUNT(e.id) FILTER (WHERE e.position IS NOT NULL AND (e.status IN ('new', 'failed')
+                              OR (e.status = 'done' AND e.track_id IS NULL))) AS pending
         FROM playlists p LEFT JOIN playlist_entries e ON e.playlist_id = p.id
     """
 

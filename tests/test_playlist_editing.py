@@ -215,3 +215,14 @@ def test_double_click_plays_then_pauses_then_resumes(app, tmp_path, tone, monkey
     finally:
         w.player.stop()
         w.downloads.shutdown()
+
+
+def test_files_deleted_outside_minuett_count_as_pending(db):
+    pid = db.add_youtube_playlist("Mix", URL, "x", "/m/Mix")
+    reconcile(db, pid, listing("a", "b"))
+    downloaded(db, pid, "a", "b")
+    db.remove_paths(["/m/a.opus"])          # what a rescan does when the file is gone
+    pl = db.get_playlist(pid)
+    assert (pl.downloaded, pl.pending) == (1, 1)
+    plan = reconcile(db, pid, listing("a", "b"))
+    assert [e.item_id for e in plan.to_download] == ["a"]   # Update fetches it again

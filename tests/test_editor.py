@@ -3,10 +3,10 @@ import stat
 
 import pytest
 
-from antiphon.core.library.db import LibraryDB
-from antiphon.core.library.editor import KEEP, common_values, edit_tracks, normalise
-from antiphon.core.library.scanner import scan
-from antiphon.core.library.tags import Cover, read_cover, read_tags, sniff_image_mime, write_cover
+from minuett.core.library.db import LibraryDB
+from minuett.core.library.editor import KEEP, common_values, edit_tracks, normalise
+from minuett.core.library.scanner import scan
+from minuett.core.library.tags import Cover, read_cover, read_tags, sniff_image_mime, write_cover
 
 FORMATS = ["mp3", "opus", "flac", "m4a", "ogg"]
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 64

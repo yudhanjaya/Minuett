@@ -3,7 +3,7 @@ import re
 
 import pytest
 
-from antiphon.ui.skin.theme import (
+from minuett.ui.skin.theme import (
     DEFAULT_THEME, REQUIRED_VARS, ThemeError, base_template, builtin_theme_dir, discover,
     expand, load_theme_file, parse_color, parse_theme, qss_value, render_qss, resolve,
 )
@@ -88,7 +88,7 @@ def app():
 
 def test_manager_apply_and_customize(app, tmp_path):
     from PySide6.QtGui import QPalette
-    from antiphon.ui.skin.manager import ThemeManager
+    from minuett.ui.skin.manager import ThemeManager
     tm = ThemeManager(tmp_path / "themes")
     tm.apply("dracula", app)
     assert tm.color("accent").name() == "#bd93f9"
@@ -108,8 +108,8 @@ def test_manager_apply_and_customize(app, tmp_path):
 def test_every_theme_paints_the_window(app, tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "cfg"))
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path / "data"))
-    from antiphon.ui.main_window import MainWindow
-    from antiphon.ui.skin.manager import ThemeManager, install
+    from minuett.ui.main_window import MainWindow
+    from minuett.ui.skin.manager import ThemeManager, install
     tm = ThemeManager(tmp_path / "themes")
     install(tm)
     w = MainWindow()

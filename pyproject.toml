@@ -1,12 +1,14 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "antiphon"
+name = "minuett"
 version = "0.1.0"
 description = "A RealPlayer-style Linux media player with a YouTube playlist downloader and parametric EQ"
 readme = "README.md"
+license = "GPL-2.0-or-later"
+license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [
   "PySide6-Essentials>=6.6",  # QtCore/Gui/Widgets only; keeps bundles small
@@ -21,13 +23,13 @@ dependencies = [
 dev = ["pytest>=8"]
 
 [project.scripts]
-antiphon = "antiphon.__main__:main"
+minuett = "minuett.__main__:main"
 
 [tool.setuptools.packages.find]
-include = ["antiphon*"]
+include = ["minuett*"]
 
 [tool.setuptools.package-data]
-"antiphon.ui.skin" = ["base.qss", "themes/*.css"]
+"minuett.ui.skin" = ["base.qss", "themes/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

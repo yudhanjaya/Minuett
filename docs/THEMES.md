@@ -1,6 +1,6 @@
 # Themes
 
-Antiphon's look is set by a theme: a `.css` file of CSS custom properties.
+Minuett's look is set by a theme: a `.css` file of CSS custom properties.
 The same variables drive the Qt style sheet (lists, menus, inputs) and the
 custom-painted chrome (transport buttons, glowing sliders, EQ faders and
 knobs, the display panel, the EQ curve). Change one file and the whole player
@@ -28,14 +28,14 @@ remembered.
 The VS Code themes were chosen from the most-installed list on
 [vscodethemes.com](https://vscodethemes.com/), picking ones that look clearly
 different from each other. Their palettes are adapted, not copied wholesale.
-Each one is Antiphon's own interpretation of that theme's colors.
+Each one is Minuett's own interpretation of that theme's colors.
 
 ## Making your own
 
 1. Pick the theme closest to what you want.
 2. **View ▸ Theme ▸ Customize Current Theme…** saves an editable copy to
-   `~/.config/antiphon/themes/` and switches to it.
-3. Edit it in any text editor. **Antiphon reloads it every time you save.**
+   `~/.config/minuett/themes/` and switches to it.
+3. Edit it in any text editor. **Minuett reloads it every time you save.**
 
 Or drop any `.css` file into that folder yourself. A theme only needs the
 variables it changes; everything else falls back to RealPlayer Classic:
@@ -120,7 +120,7 @@ density of the whole app:
 | `--nav-item-height` | 38px | navigation rail items |
 | `--text-xs` … `--text-2xl` | 11, 12, 13, 15, 18, 22 px | type scale: labels, secondary text, body, headings, view titles, Now Playing title |
 
-Layout changes apply the next time Antiphon starts; colors apply immediately.
+Layout changes apply the next time Minuett starts; colors apply immediately.
 
 ### Contrast
 

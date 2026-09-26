@@ -1,6 +1,6 @@
 import pytest
 
-from antiphon.core.library.tags import TagError, read_tags, write_tags
+from minuett.core.library.tags import TagError, read_tags, write_tags
 
 FORMATS = ["mp3", "opus", "flac", "m4a", "ogg"]
 

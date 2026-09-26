@@ -6,15 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from antiphon.core.downloader.matching import Candidate, Matcher, Target, score
-from antiphon.core.downloader.playlist import ListingError, reconcile, source_of_url
-from antiphon.core.downloader.sources.files import import_key, listing_from_file, parse_export
-from antiphon.core.downloader.sources.spotify import listing_from_embed, parse_spotify_url
-from antiphon.core.downloader.worker import (
+from minuett.core.downloader.matching import Candidate, Matcher, Target, score
+from minuett.core.downloader.playlist import ListingError, reconcile, source_of_url
+from minuett.core.downloader.sources.files import import_key, listing_from_file, parse_export
+from minuett.core.downloader.sources.spotify import listing_from_embed, parse_spotify_url
+from minuett.core.downloader.worker import (
     Downloader, JobStatus, NO_MATCH_MESSAGE, Preferences, jobs_for,
 )
-from antiphon.core.library.db import DONE, UNAVAILABLE, LibraryDB, Track
-from antiphon.core.library.tags import read_tags
+from minuett.core.library.db import DONE, UNAVAILABLE, LibraryDB, Track
+from minuett.core.library.tags import read_tags
 
 
 # --- URLs -----------------------------------------------------------------------

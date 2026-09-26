@@ -1,4 +1,4 @@
-# Antiphon — design plan
+# Minuett — design plan
 
 A Linux media player with a RealPlayer 10–style interface, a YouTube playlist
 downloader, a SQLite-backed library with tag editing, and a 10-band parametric
@@ -22,7 +22,7 @@ The core has no Qt imports so it can be tested headless. The UI talks to it
 through callbacks bridged to Qt signals.
 
 ```
-antiphon/
+minuett/
   core/
     signals.py      # tiny Qt-free signal/slot helper
     player.py       # GStreamer playbin wrapper, queue, gapless
@@ -61,7 +61,7 @@ Two phases, so the user sees the whole playlist before anything downloads.
 ```python
 {
   "format": "bestaudio/best",
-  "download_archive": "~/.local/share/antiphon/archive.txt",
+  "download_archive": "~/.local/share/minuett/archive.txt",
   "postprocessors": [
     {"key": "FFmpegExtractAudio", "preferredcodec": "opus"},
     {"key": "FFmpegMetadata"},
@@ -116,7 +116,7 @@ original sketch above:
   the year.
 - **JavaScript runtime:** yt-dlp 2026.x needs one for YouTube, plus the
   `yt-dlp-ejs` package (from `yt-dlp[default]`). yt-dlp enables only Deno by
-  default; Antiphon passes whichever of Deno/Node/QuickJS/Bun is installed.
+  default; Minuett passes whichever of Deno/Node/QuickJS/Bun is installed.
 
 ### As built: other sources (Spotify, Pandora, files)
 
@@ -196,13 +196,13 @@ on/off toggle, JSON presets (Flat, Rock, Vocal, Bass Boost, Treble Cut).
 ### As built: equalizer
 
 - All ten bands are peaking filters. GStreamer makes the first and last
-  bands shelves by default, so Antiphon overrides that.
+  bands shelves by default, so Minuett overrides that.
 - The curve uses GStreamer's own filter design (gain scaled as 10^(dB/40), bandwidth
   in Hz warped with tan(bw/2)) rather than the RBJ cookbook, so it shows what
   you hear. Knob Q is converted to bandwidth as freq / Q. The default Q of 1.5
   matches GStreamer's own 10-band spacing.
 - Off is a bypass (gains and preamp to unity), not a pipeline relink.
-- State lives in `~/.config/antiphon/equalizer.json`; user presets in
+- State lives in `~/.config/minuett/equalizer.json`; user presets in
   `eq_presets.json`. Built-in presets can't be overwritten.
 
 ## Build order

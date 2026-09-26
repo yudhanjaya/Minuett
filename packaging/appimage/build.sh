@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build dist/Antiphon-<version>-x86_64.AppImage from this machine's Python 3.12,
+# Build dist/Minuett-<version>-x86_64.AppImage from this machine's Python 3.12,
 # PyGObject and GStreamer, plus pip wheels, ffmpeg and Deno.
 #
 # Build on the oldest distro you want to support: the AppImage needs a host
@@ -13,7 +13,7 @@ ROOT=$PWD
 VERSION=$(python3 -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
 DENO_VERSION=2.9.7
 DENO_SHA256=c6527f24f4b16031d3ae4fa9f658d5f11534c8d84ce7dc8502420280919c3490
-APP=io.github.yudhanjaya.Antiphon
+APP=io.github.yudhanjaya.Minuett
 PY=python3.12
 ARCH=x86_64
 TRIPLET=x86_64-linux-gnu
@@ -124,7 +124,7 @@ cp "packaging/$APP.metainfo.xml" "$USR/share/metainfo/$APP.appdata.xml"
 cp "packaging/icons/$APP.svg" "$USR/share/icons/hicolor/scalable/apps/"
 
 echo "==> AppImage"
-OUT="$ROOT/dist/Antiphon-$VERSION-$ARCH.AppImage"
+OUT="$ROOT/dist/Minuett-$VERSION-$ARCH.AppImage"
 # Extract-and-run avoids needing FUSE on the build machine.
 APPIMAGE_EXTRACT_AND_RUN=1 ARCH=$ARCH "$TOOLS/appimagetool" --no-appstream "$APPDIR" "$OUT" >/dev/null
 echo "$OUT ($(du -h "$OUT" | cut -f1))"

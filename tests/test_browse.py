@@ -2,8 +2,8 @@ import os
 
 import pytest
 
-from antiphon.core.library.browse import ARRANGEMENTS, build_tree, matcher
-from antiphon.core.library.db import LibraryDB, Track
+from minuett.core.library.browse import ARRANGEMENTS, build_tree, matcher
+from minuett.core.library.db import LibraryDB, Track
 
 
 def tracks():
@@ -61,7 +61,7 @@ def app():
 
 def test_sync_is_incremental(app):
     from PySide6.QtCore import QItemSelectionModel
-    from antiphon.ui.views.library_model import LibraryFilterProxy, LibraryModel
+    from minuett.ui.views.library_model import LibraryFilterProxy, LibraryModel
     db = LibraryDB(":memory:")
     for t in tracks():
         t.id = None
@@ -92,8 +92,8 @@ def test_sync_is_incremental(app):
 
 
 def test_browse_tree_filters_proxy(app):
-    from antiphon.ui.views.browse_tree import BrowseTree
-    from antiphon.ui.views.library_model import LibraryFilterProxy, LibraryModel
+    from minuett.ui.views.browse_tree import BrowseTree
+    from minuett.ui.views.library_model import LibraryFilterProxy, LibraryModel
     db = LibraryDB(":memory:")
     for t in tracks():
         t.id = None

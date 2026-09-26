@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <!-- Minuett: the three beats of a bar in 3/4, the downbeat strongest. -->
+  <rect x="8" y="8" width="112" height="112" rx="28" fill="#1c1f24"/>
+  <rect x="8.5" y="8.5" width="111" height="111" rx="27.5" fill="none" stroke="#ffffff" stroke-opacity="0.08"/>
+  <circle cx="38" cy="82" r="15" fill="#5aa9ff"/>
+  <circle cx="66" cy="64" r="11" fill="#5aa9ff"/>
+  <circle cx="90" cy="46" r="8" fill="#5aa9ff"/>
+</svg>

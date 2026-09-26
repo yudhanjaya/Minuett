@@ -1,6 +1,6 @@
 import pytest
 
-from antiphon.core.visualizer import (
+from minuett.core.visualizer import (
     Analyzer, bar_ranges, bars_from_magnitudes, parse_magnitudes, to_level,
 )
 
@@ -48,8 +48,8 @@ def test_player_emits_spectrum_in_sync(tmp_path, tone):
     import time
     import subprocess
     gst = pytest.importorskip("gi.repository.Gst")
-    from antiphon.core.eq_filter import EqualizerFilter
-    from antiphon.core.player import Player, QueueItem
+    from minuett.core.eq_filter import EqualizerFilter
+    from minuett.core.player import Player, QueueItem
     f = tmp_path / "k.opus"
     subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i",
                     "sine=frequency=1000:duration=2", "-c:a", "libopus", str(f)], check=True)

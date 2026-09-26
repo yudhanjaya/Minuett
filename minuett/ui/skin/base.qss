@@ -1,0 +1,228 @@
+/* Minuett base skin. Colors and layout tokens come from the active theme's
+   :root variables; see docs/THEMES.md. Custom-painted widgets (transport
+   buttons, sliders, knobs, display, EQ curve) read the same variables. */
+
+/* The base font size comes from the theme's --font-size via the app font;
+   setting font-size here would override the type scale used by titles. */
+QWidget { color: var(--text); }
+QMainWindow, QDialog, QMessageBox { background: var(--window); }
+QMainWindow::separator { background: var(--border); width: 1px; height: 1px; }
+
+/* --- type roles ---------------------------------------------------------- */
+#ViewTitle { color: var(--text); }
+#Muted, #EqValue { color: var(--text-muted); }
+#SectionLabel { color: var(--text-muted); }
+#EqPeak { color: var(--warning); }
+
+/* --- transport strip ---------------------------------------------------- */
+#Transport {
+  background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+      stop:0 var(--chrome-top), stop:1 var(--chrome-bottom));
+  border-bottom: 1px solid var(--chrome-edge);
+}
+#Transport QLabel { color: var(--chrome-text); background: transparent; }
+
+/* --- panes -------------------------------------------------------------- */
+#NavRail {
+  background: var(--panel);
+  border: none;
+  border-right: 1px solid var(--border);
+  padding: var(--space-2) 0;
+  outline: 0;
+}
+#NavRail::item {
+  min-height: var(--nav-item-height);
+  padding: 0 var(--space-3);
+  margin: 1px var(--space-2);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+}
+#NavRail::item:hover { background: var(--hover); color: var(--text); }
+#NavRail::item:selected {
+  background: var(--selection);
+  color: var(--selection-text);
+}
+#QueuePane, #BrowsePane { background: var(--panel); }
+#QueuePane QListView, #BrowsePane QTreeView { background: var(--panel); }
+#AccountsPanel { background: var(--panel); border: none; border-top: 1px solid var(--border); }
+#ViewHeader {
+  background: var(--window);
+  border: none;
+  border-bottom: 1px solid var(--border);
+}
+#SubHeader {
+  background: var(--panel);
+  border: none;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+QSplitter::handle { background: var(--border); }
+QSplitter::handle:horizontal { width: 1px; }
+QSplitter::handle:vertical { height: 1px; }
+
+/* --- item views --------------------------------------------------------- */
+QTableView, QTreeView, QListView {
+  background: var(--surface);
+  alternate-background-color: var(--surface-alt);
+  border: none;
+  selection-background-color: var(--selection);
+  selection-color: var(--selection-text);
+  gridline-color: transparent;
+  outline: 0;
+}
+QTableView::item { padding: 0 var(--space-2); border: none; }
+QTreeView::item { min-height: var(--row-height); padding: 0 var(--space-1); border: none; }
+QListView::item { padding: 0 var(--space-2); }
+QTableView::item:hover, QTreeView::item:hover, QListView::item:hover {
+  background: var(--hover);
+}
+QTableView::item:selected, QTreeView::item:selected, QListView::item:selected {
+  background: var(--selection);
+  color: var(--selection-text);
+}
+QHeaderView { background: var(--surface); border: none; }
+QHeaderView::section {
+  background: var(--surface);
+  color: var(--text-muted);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: bold;
+}
+QHeaderView::section:hover { color: var(--text); }
+QTableCornerButton::section { background: var(--surface); border: none; }
+
+/* --- inputs ------------------------------------------------------------- */
+QLineEdit, QComboBox, QSpinBox, QAbstractSpinBox {
+  background: var(--input);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-height: var(--control-height);
+  padding: 0 var(--space-3);
+  selection-background-color: var(--accent);
+  selection-color: var(--accent-text);
+}
+QLineEdit:hover, QComboBox:hover { border-color: var(--scrollbar-hover); }
+QLineEdit:focus, QComboBox:focus { border: 1px solid var(--accent); }
+QLineEdit:disabled, QComboBox:disabled { color: var(--text-muted); }
+QComboBox::drop-down { border: none; width: 22px; }
+QComboBox QAbstractItemView {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: var(--space-1);
+  selection-background-color: var(--selection);
+  selection-color: var(--selection-text);
+}
+
+QPushButton {
+  background: var(--button);
+  color: var(--button-text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  min-height: var(--control-height);
+  padding: 0 var(--space-4);
+}
+QPushButton:hover { background: var(--button-hover); }
+QPushButton:pressed, QPushButton:checked {
+  background: var(--accent);
+  color: var(--accent-text);
+  border-color: var(--accent);
+}
+QPushButton:focus { border: 1px solid var(--accent); }
+QPushButton:disabled { color: var(--text-muted); background: var(--panel); border-color: var(--border); }
+QPushButton[variant="primary"] {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 1px solid var(--accent);
+  font-weight: bold;
+}
+QPushButton[variant="primary"]:hover { border-color: var(--text); }
+QPushButton[variant="ghost"] { background: transparent; border-color: transparent; }
+QPushButton[variant="ghost"]:hover { background: var(--hover); }
+QPushButton[variant="ghost"]:focus { border-color: var(--accent); }
+QPushButton[variant="compact"] {
+  min-height: 26px;
+  padding: 0 var(--space-3);
+  font-size: var(--text-sm);
+}
+
+QToolButton#IconButton {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  padding: 0;
+}
+QToolButton#IconButton:hover { background: var(--hover); }
+QToolButton#IconButton:checked { background: var(--selection); }
+QToolButton#IconButton:focus { border-color: var(--accent); }
+
+QCheckBox, QRadioButton { spacing: var(--space-2); }
+
+/* --- menus, tooltips, status -------------------------------------------- */
+QMenuBar { background: var(--chrome-top); color: var(--chrome-text); padding: 2px var(--space-1); }
+QMenuBar::item { background: transparent; padding: var(--space-1) var(--space-3); border-radius: var(--radius); }
+QMenuBar::item:selected { background: var(--hover); color: var(--text); }
+QMenu {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: var(--space-1) 0;
+}
+QMenu::item { padding: 6px var(--space-6) 6px var(--space-5); }
+QMenu::item:selected { background: var(--selection); color: var(--selection-text); }
+QMenu::item:disabled { color: var(--text-muted); }
+QMenu::separator { height: 1px; background: var(--border); margin: var(--space-1) var(--space-2); }
+QToolTip {
+  background: var(--tooltip);
+  color: var(--tooltip-text);
+  border: 1px solid var(--border);
+  padding: var(--space-1) var(--space-2);
+}
+QStatusBar {
+  background: var(--panel);
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  min-height: 24px;
+  padding-left: var(--space-2);
+}
+QStatusBar QLabel { color: var(--text-muted); }
+QStatusBar::item { border: none; }
+
+/* --- scrollbars --------------------------------------------------------- */
+QScrollBar:vertical { background: transparent; width: 12px; margin: 0; }
+QScrollBar:horizontal { background: transparent; height: 12px; margin: 0; }
+QScrollBar::handle {
+  background: var(--scrollbar);
+  border-radius: 4px;
+  min-height: 28px;
+  min-width: 28px;
+  margin: 2px;
+}
+QScrollBar::handle:hover { background: var(--scrollbar-hover); }
+QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
+QScrollBar::add-page, QScrollBar::sub-page { background: transparent; }
+
+/* --- dialogs ------------------------------------------------------------ */
+QDialog QLabel#FormLabel { color: var(--text-muted); }
+
+/* --- tabs --------------------------------------------------------------- */
+QTabWidget::pane {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  top: -1px;
+}
+QTabBar::tab {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-2) var(--space-4);
+  margin-right: var(--space-1);
+}
+QTabBar::tab:hover { color: var(--text); }
+QTabBar::tab:selected { color: var(--text); border-bottom: 2px solid var(--accent); }
+QTabBar::tab:focus { color: var(--text); }

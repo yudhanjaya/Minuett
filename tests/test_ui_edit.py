@@ -8,11 +8,11 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 QtWidgets = pytest.importorskip("PySide6.QtWidgets")
 from PySide6.QtCore import Qt  # noqa: E402
 
-from antiphon.core.library.db import LibraryDB  # noqa: E402
-from antiphon.core.library.scanner import scan  # noqa: E402
-from antiphon.core.library.tags import read_tags  # noqa: E402
-from antiphon.ui.dialogs.tag_editor import MULTIPLE, TagEditorDialog  # noqa: E402
-from antiphon.ui.views.library_model import COLUMNS, LibraryModel  # noqa: E402
+from minuett.core.library.db import LibraryDB  # noqa: E402
+from minuett.core.library.scanner import scan  # noqa: E402
+from minuett.core.library.tags import read_tags  # noqa: E402
+from minuett.ui.dialogs.tag_editor import MULTIPLE, TagEditorDialog  # noqa: E402
+from minuett.ui.views.library_model import COLUMNS, LibraryModel  # noqa: E402
 
 
 @pytest.fixture(scope="module")

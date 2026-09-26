@@ -1,0 +1,61 @@
+# Build:   flatpak run org.flatpak.Builder --user --install --force-clean build-dir \
+#              packaging/flatpak/io.github.yudhanjaya.Minuett.yml
+# Bundle:  see packaging/flatpak/build.sh
+#
+# The GNOME runtime already has Python 3.13, PyGObject, GStreamer with the
+# good/libav plugins (including equalizer-nbands) and an ffmpeg with the
+# codecs yt-dlp needs, so we only add Python wheels and Deno.
+app-id: io.github.yudhanjaya.Minuett
+runtime: org.gnome.Platform
+runtime-version: '50'
+sdk: org.gnome.Sdk
+command: minuett
+
+finish-args:
+  - --share=ipc
+  - --share=network               # yt-dlp
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --socket=pulseaudio           # also covers PipeWire's pulse server
+  - --device=dri
+  # The music library and the default download folder. For music elsewhere:
+  #   flatpak override --user --filesystem=/path/to/music io.github.yudhanjaya.Minuett
+  - --filesystem=xdg-music
+
+cleanup:
+  - /include
+  - /lib/pkgconfig
+  - '*.a'
+
+modules:
+  # Deno runs yt-dlp's YouTube challenge scripts (yt-dlp-ejs). The host's
+  # JavaScript runtime isn't visible inside the sandbox, so we ship one.
+  - name: deno
+    buildsystem: simple
+    build-commands:
+      - install -Dm755 deno ${FLATPAK_DEST}/bin/deno
+    sources:
+      - type: archive
+        only-arches: [x86_64]
+        url: https://github.com/denoland/deno/releases/download/v2.9.7/deno-x86_64-unknown-linux-gnu.zip
+        sha256: c6527f24f4b16031d3ae4fa9f658d5f11534c8d84ce7dc8502420280919c3490
+        strip-components: 0
+
+  # Pinned wheels; regenerate with: python3 tools/gen_flatpak_deps.py
+  - python-deps.json
+
+  - name: minuett
+    buildsystem: simple
+    build-commands:
+      - pip3 install --no-deps --no-build-isolation --prefix=${FLATPAK_DEST} .
+      - install -Dm644 packaging/io.github.yudhanjaya.Minuett.desktop ${FLATPAK_DEST}/share/applications/io.github.yudhanjaya.Minuett.desktop
+      - install -Dm644 packaging/io.github.yudhanjaya.Minuett.metainfo.xml ${FLATPAK_DEST}/share/metainfo/io.github.yudhanjaya.Minuett.metainfo.xml
+      - install -Dm644 packaging/icons/io.github.yudhanjaya.Minuett.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/io.github.yudhanjaya.Minuett.svg
+    sources:
+      - type: dir
+        path: ../..
+        skip:
+          - .venv
+          - build-dir
+          - .flatpak-builder
+          - dist

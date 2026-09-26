@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Minuett
+GenericName=Music Player
+Comment=Play your music library, sync YouTube playlists, and shape the sound with a parametric EQ
+Exec=minuett %U
+Icon=io.github.yudhanjaya.Minuett
+Terminal=false
+Categories=AudioVideo;Audio;Player;Qt;
+Keywords=music;player;playlist;youtube;equalizer;tags;
+StartupWMClass=minuett
+StartupNotify=true

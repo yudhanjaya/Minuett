@@ -2,7 +2,7 @@
 """Generate packaging/flatpak/python-deps.json: pinned wheels for the Flatpak.
 
 flatpak-builder builds offline, so every Python dependency must be listed as
-a source with a URL and sha256. This resolves Antiphon's dependencies for the
+a source with a URL and sha256. This resolves Minuett's dependencies for the
 runtime's Python (3.13, x86_64) with ``pip install --dry-run --report`` and
 writes a flatpak-builder module that installs exactly those wheels.
 

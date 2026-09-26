@@ -1,6 +1,6 @@
 import pytest
 
-from antiphon.core.downloader.naming import clean_title, parse_title, safe_filename
+from minuett.core.downloader.naming import clean_title, parse_title, safe_filename
 
 
 @pytest.mark.parametrize("video, uploader, artist, title", [
@@ -44,7 +44,7 @@ def test_genre_tags_move_out_of_titles(video, title, genre):
 
 
 def test_tags_from_info_uses_title_genre_not_youtube_category():
-    from antiphon.core.downloader.worker import tags_from_info
+    from minuett.core.downloader.worker import tags_from_info
     tags = tags_from_info({"title": "Paper Lanterns ❄️ [lofi hip hop]", "uploader": "Quiet Hours",
                            "genre": "Music"}, None)
     assert (tags["title"], tags["artist"], tags["genre"]) == ("Paper Lanterns ❄️", "Quiet Hours", "Lofi Hip Hop")
@@ -52,10 +52,10 @@ def test_tags_from_info_uses_title_genre_not_youtube_category():
 
 
 def test_cleanup_moves_existing_genre_tags(tmp_path, tone):
-    from antiphon.core.library.cleanup import apply_genre_tag_fixes, find_genre_tag_fixes
-    from antiphon.core.library.db import LibraryDB
-    from antiphon.core.library.scanner import scan
-    from antiphon.core.library.tags import read_tags
+    from minuett.core.library.cleanup import apply_genre_tag_fixes, find_genre_tag_fixes
+    from minuett.core.library.db import LibraryDB
+    from minuett.core.library.scanner import scan
+    from minuett.core.library.tags import read_tags
     tone(tmp_path / "a.opus", title="Slow Tram 💤 [lofi hip hop]", artist="Quiet Hours", genre="Music")
     tone(tmp_path / "b.opus", title="Song [Remix]", artist="X")
     tone(tmp_path / "c.opus", title="Own genre [lofi]", artist="Y", genre="Jazz")

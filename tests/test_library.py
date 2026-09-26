@@ -1,7 +1,7 @@
 import os
 
-from antiphon.core.library.db import LibraryDB, Track
-from antiphon.core.library.scanner import scan
+from minuett.core.library.db import LibraryDB, Track
+from minuett.core.library.scanner import scan
 
 
 def test_scan_add_skip_update_remove(tmp_path, tone):

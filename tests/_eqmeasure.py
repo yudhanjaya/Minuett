@@ -3,8 +3,8 @@
 import array
 import math
 
-from antiphon.core.eq_filter import EqualizerFilter
-from antiphon.core.equalizer import EqState
+from minuett.core.eq_filter import EqualizerFilter
+from minuett.core.equalizer import EqState
 from gi.repository import Gst
 
 

@@ -14,11 +14,11 @@ pytest.importorskip("PySide6.QtWidgets")
 from PySide6.QtCore import QEventLoop, QTimer  # noqa: E402
 from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
 
-import antiphon.ui.download_manager as dm  # noqa: E402
-from antiphon.core.downloader.playlist import Listing, RemoteEntry  # noqa: E402
-from antiphon.core.downloader.worker import Downloader, Preferences  # noqa: E402
-from antiphon.core.library.db import LibraryDB  # noqa: E402
-from antiphon.ui.views.playlists_view import ACTIONS_COL, PlaylistsView  # noqa: E402
+import minuett.ui.download_manager as dm  # noqa: E402
+from minuett.core.downloader.playlist import Listing, RemoteEntry  # noqa: E402
+from minuett.core.downloader.worker import Downloader, Preferences  # noqa: E402
+from minuett.core.library.db import LibraryDB  # noqa: E402
+from minuett.ui.views.playlists_view import ACTIONS_COL, PlaylistsView  # noqa: E402
 
 URL_A = "https://www.youtube.com/playlist?list=PLaaaaaaaaaa"
 URL_B = "https://www.youtube.com/playlist?list=PLbbbbbbbbbb"

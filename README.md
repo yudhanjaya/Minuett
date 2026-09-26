@@ -1,101 +1,182 @@
-# Antiphon
+# Minuett
 
-A Linux music player in the spirit of RealPlayer 10, with a YouTube playlist
-downloader, a SQLite-backed library with tag editing, and a 10-band parametric
-equalizer. Built with Python 3.12, PySide6 (Qt 6) and GStreamer.
+<!-- Introduction and screenshots go here. -->
 
-See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
+A music player for Linux in the spirit of RealPlayer 10 and Winamp: a glossy
+transport strip, a library you browse by playlist, a parametric equalizer, and
+a spectrum analyzer, with playlists pulled in from YouTube, YouTube Music,
+Spotify and Pandora.
 
-## Status
+## Features
 
-**All five build phases done: playback, library, metadata editing, playlist downloader, equalizer, and the skin.**
+**Playback**
+- Gapless playback of Opus, AAC/M4A, MP3, FLAC, Ogg Vorbis and WAV
+  (GStreamer).
+- Transport strip with an LCD-style display, a glowing position slider, and a
+  Winamp-style spectrum analyzer that follows what you hear, after the EQ.
+- Toolbar mode shrinks the window to just the transport strip (Ctrl+T; Esc
+  returns).
+- Up Next queue in the right sidebar; a Now Playing view with cover art.
 
-- [x] GStreamer playbin wrapper: queue, gapless transitions, repeat, seek,
-      volume, broken files skipped. Bus polled from a 50 ms `QTimer`.
-- [x] Library DB (SQLite), mtime-aware scanner, mutagen tag read/write for
-      MP3, M4A, Opus, FLAC, Ogg.
-- [x] Basic window: transport strip, nav rail, sortable/searchable library
-      table, Now Playing queue pane, compact toolbar mode (Ctrl+T, Esc exits).
-- [x] Arrange-by browse tree (Playlist, Artist/Album, Album Artist, Album,
-      Genre, Year, Date Added); library refreshes in place, keeping selection.
-- [ ] Folder watching (watchdog)
-- [x] Phase 2: metadata editing. Double-click a tag cell (or F2) to edit it
-      inline; select rows and press Ctrl+E for the batch editor with cover art
-      (view, replace, remove). Files are written first and the database only
-      updates on success. Enter, or double-clicking a read-only column, plays.
-- [x] Phase 3: playlist-based downloader (yt-dlp). Import a YouTube playlist
-      (Ctrl+I); every imported playlist is tracked and has its own **Check**
-      (see what's new) and **Update** (download only new songs) buttons in
-      Playlists; there is deliberately no "update all". Songs removed on
-      YouTube leave the playlist but stay in your library; a video in two
-      playlists is downloaded once and linked into both. Downloads view shows
-      per-song progress with Cancel and Retry Failed. The playlist name is a
-      sortable, searchable library column.
-- [x] Spotify and Pandora playlists. Paste a Spotify playlist or album link
-      (the public page lists up to 100 songs), or import an export file:
-      Exportify for Spotify; TuneMyMusic or Soundiiz for Pandora, Apple Music
-      and others. Songs are matched on YouTube Music by title, artist and
-      length (Spotify's and Pandora's audio is DRM-protected and never
-      downloaded); weak matches are reported instead of guessed. Every track
-      records its source (YouTube, YouTube Music, Spotify, Pandora…) and link.
-- [x] Optional sign-ins (Accounts, bottom of the right sidebar):
-      **YouTube Music**: with a Premium account, downloads get Premium's
-      higher-bitrate audio. Antiphon reuses your browser's sign-in (or an
-      exported cookies file) and never sees your password. **Spotify**:
-      connect your own registered Spotify app (the owner needs Premium) to
-      import your own and collaborative playlists in full. Spotify sign-in
-      doesn't change audio quality; its audio is never downloaded.
-- [x] Winamp-style spectrum analyzer in the display panel, in theme colours
-      (View ▸ Visualizer).
-- [x] Opus by default at the best available quality: YouTube's Opus streams
-      are copied untouched, anything else is converted once at 256 kbps.
-      Original format and MP3 V0 are options in Preferences.
-- [x] Phase 4: 10-band parametric equalizer in playbin's audio-filter slot.
-      Gain slider (±12 dB), frequency knob and Q knob per band, preamp, on/off,
-      live response curve, clipping hint, JSON presets (Flat, Rock, Vocal, Bass
-      Boost, Treble Cut, plus your own). The drawn curve is checked against
-      GStreamer's actual output in the tests (within 0.05 dB).
-- [x] Phase 5: RealPlayer 10-style skin with custom-painted transport, glowing
-      sliders, EQ faders and knobs, and an LCD-style display. Themes are CSS
-      files: 11 built in (RealPlayer Classic plus ten VS Code favourites), and
-      you can write your own. See [docs/THEMES.md](docs/THEMES.md).
-- [x] Flatpak and AppImage packages (x86_64), each with a built-in
-      `--self-test`.
+**Library**
+- SQLite library with an incremental folder scanner (unchanged files are
+  skipped on rescans).
+- Browse by Playlist, Artist/Album, Album Artist, Album, Genre, Year, Date
+  Added or Source; live search across title, artist, album, genre and
+  playlist.
+- Tag editing: double-click a cell (or F2) to edit one field; select several
+  songs and press Ctrl+E for the batch editor. Fields that differ show
+  "(multiple values)" and are only written if you change them. Cover art can
+  be viewed, replaced and removed. Files are written first; the library only
+  updates when the write succeeds.
+- Genre tags in titles ("Song [lofi hip hop]") move into the genre field
+  (Edit ▸ Move Genre Tags Out of Titles… tidies older downloads).
+
+**Playlists from other services**
+- **YouTube / YouTube Music:** paste a playlist link. The whole list is shown
+  before anything downloads, then songs download one at a time with per-song
+  progress, Cancel and Retry Failed.
+- **Spotify:** paste a playlist or album link (the public page lists up to 100
+  songs), or connect your account to import your own playlists in full.
+- **Pandora, Apple Music and others:** import a CSV/TXT export from
+  [Exportify](https://exportify.app), TuneMyMusic or Soundiiz.
+- Spotify, Pandora and file imports are matched on YouTube Music by title,
+  artist and length. Their own audio is DRM-protected and never downloaded.
+  Weak matches are reported as "not found" rather than guessed.
+- **Update each playlist on its own:** Check shows what's new, Update
+  downloads only songs added since. There is deliberately no "update all".
+  Songs removed upstream leave the playlist but stay in your library; a song
+  in several playlists is downloaded once; live streams are skipped.
+- Every song records its source (YouTube, YouTube Music, Spotify, Pandora…)
+  and its link there.
+
+**Audio quality**
+- Opus by default. YouTube's own Opus streams are copied untouched; anything
+  else is converted once at 256 kbps. "Original" (no conversion) and MP3 V0
+  are options in Preferences.
+- Optional YouTube Music sign-in: with a Premium account, downloads use
+  Premium's higher-bitrate streams.
+
+**Equalizer**
+- 10-band parametric EQ: gain (±12 dB), frequency and Q per band, preamp,
+  on/off, presets (Flat, Rock, Vocal, Bass Boost, Treble Cut, plus your own).
+- Live response curve computed from GStreamer's own filter design, and tested
+  against the element's measured output (within 0.05 dB).
+
+**Themes**
+- Eleven built in: RealPlayer Classic (default), One Dark Pro, Dracula,
+  Monokai Pro, Night Owl, SynthWave '84, Cobalt2, Nord, Gruvbox Dark,
+  GitHub Light and Catppuccin Latte.
+- Themes are CSS files of variables that drive colours, spacing, sizes and the
+  type scale. Customize one from View ▸ Theme; changes reload as you save. All
+  built-in themes meet WCAG AA text contrast. See [docs/THEMES.md](docs/THEMES.md).
 
 ## Installing
 
-Download from `dist/` (or build it yourself, below).
+Download the Flatpak bundle or the AppImage from the
+[Releases](../../releases) page.
 
-**Flatpak** (needs the Flathub remote for the GNOME 50 runtime):
+### Flatpak
 
-```bash
-flatpak install --user Antiphon-0.1.0-x86_64.flatpak
-```
-
-The Flatpak can read and write `~/Music`. For music elsewhere, grant access
-(the same kind of override lets it read a browser's sign-in for YouTube Music;
-Accounts ▸ YouTube Music shows the exact command):
+Needs the Flathub remote (for the GNOME 50 runtime):
 
 ```bash
-flatpak override --user --filesystem=/path/to/music io.github.yudhanjaya.Antiphon
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
 ```
-
-**AppImage**: make it executable and run it. It bundles Python, GStreamer,
-ffmpeg and Deno, and needs glibc 2.39 or newer (Ubuntu 24.04, Fedora 40,
-Debian 13, or later).
 
 ```bash
-chmod +x Antiphon-0.1.0-x86_64.AppImage
+flatpak install --user Minuett-0.1.0-x86_64.flatpak
 ```
-
-Either package can check itself: it decodes each audio format through the EQ
-and confirms yt-dlp can find ffmpeg and a JavaScript runtime.
 
 ```bash
-flatpak run io.github.yudhanjaya.Antiphon --self-test
+flatpak run io.github.yudhanjaya.Minuett
 ```
 
-## Building the packages
+The Flatpak can read and write `~/Music` (downloads go to
+`~/Music/Minuett/<playlist>/`). To use music stored elsewhere:
+
+```bash
+flatpak override --user --filesystem=/path/to/music io.github.yudhanjaya.Minuett
+```
+
+### AppImage
+
+Bundles Python, GStreamer, ffmpeg and Deno. Needs glibc 2.39 or newer
+(Ubuntu 24.04, Fedora 40, Debian 13, or later).
+
+```bash
+chmod +x Minuett-0.1.0-x86_64.AppImage
+```
+
+```bash
+./Minuett-0.1.0-x86_64.AppImage
+```
+
+### Checking an install
+
+Both packages can test themselves: every audio format is decoded through the
+EQ, and yt-dlp's access to ffmpeg and a JavaScript runtime is confirmed.
+
+```bash
+flatpak run io.github.yudhanjaya.Minuett --self-test
+```
+
+## Using it
+
+- **Add music:** File ▸ Add Music Folder…, or import a playlist from
+  Playlists ▸ Import Playlist (Ctrl+I).
+- **Play:** Enter, or double-click a read-only column (Time, Format…);
+  double-clicking a tag column edits it.
+- **Keys:** Space play/pause · Ctrl+. stop · Ctrl+←/→ previous/next ·
+  Ctrl+E edit tags · Ctrl+T toolbar mode · F5 rescan.
+
+### Optional sign-ins
+
+Under **Accounts** at the bottom of the right sidebar. Everything works
+without them.
+
+- **YouTube Music:** reuses the sign-in of a browser you already use (Firefox,
+  Chrome, Chromium, Brave, Edge, Vivaldi, Opera) or an exported
+  `cookies.txt`. Minuett never sees your password. In the Flatpak, the dialog
+  shows a one-line command that grants read-only access to just that
+  browser's cookie folder. YouTube can restrict accounts it sees used by
+  download tools; Minuett paces its requests, but the risk isn't zero.
+- **Spotify:** Spotify only lets registered apps sign in, and since February
+  2026 only lists the songs of playlists you own or collaborate on. Create a
+  free app on the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard)
+  (its owner needs Premium), add the redirect URI shown in the dialog, and
+  paste the Client ID. Sign-in uses PKCE; no client secret is stored.
+
+Sign-in details are kept in `~/.config/minuett/accounts.json`, readable only
+by you.
+
+## Building from source
+
+System packages (Debian/Ubuntu names):
+
+```bash
+sudo apt install python3-gi gir1.2-gstreamer-1.0 gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav ffmpeg libxcb-cursor0
+```
+
+```bash
+python3.12 -m venv --system-site-packages .venv
+```
+
+```bash
+.venv/bin/pip install -e '.[dev]'
+```
+
+```bash
+.venv/bin/python -m minuett
+```
+
+Tests (headless; tones are generated with ffmpeg, audio goes to a fakesink):
+
+```bash
+.venv/bin/python -m pytest
+```
+
+Packages:
 
 ```bash
 ./packaging/flatpak/build.sh
@@ -107,65 +188,81 @@ flatpak run io.github.yudhanjaya.Antiphon --self-test
 
 The Flatpak build needs `org.flatpak.Builder` and `org.gnome.Sdk//50` from
 Flathub. Python wheels are pinned in `packaging/flatpak/python-deps.json`;
-after changing dependencies, regenerate it with `python3 tools/gen_flatpak_deps.py`.
-The AppImage is assembled from the build machine's Python 3.12, PyGObject and
-GStreamer, so build it on the oldest distro you want to support.
+regenerate with `python3 tools/gen_flatpak_deps.py` after changing
+dependencies. Build the AppImage on the oldest distro you want to support.
 
-## Running from source
-
-System packages (Debian/Ubuntu names):
-
-```bash
-sudo apt install python3-gi gir1.2-gstreamer-1.0 gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-libav ffmpeg libxcb-cursor0
-```
-
-`libxcb-cursor0` is needed by Qt 6.5+ on X11 and isn't installed by default
-on Ubuntu-based systems.
-
-YouTube downloads also need a JavaScript runtime that yt-dlp supports: Deno,
-Node.js, QuickJS or Bun. Antiphon uses whichever is installed (see
-File ▸ Preferences).
-
-Then create a virtualenv that can see the system PyGObject:
-
-```bash
-python3.12 -m venv --system-site-packages .venv
-```
-
-```bash
-.venv/bin/pip install -e '.[dev]'
-```
-
-```bash
-.venv/bin/python -m antiphon
-```
-
-Use **File ▸ Add Music Folder…** to populate the library. F5 rescans.
-
-## Tests
-
-The core has no Qt imports and is tested headless. Tests generate short sine-wave
-files with ffmpeg; player tests route audio to a `fakesink`.
-
-```bash
-.venv/bin/python -m pytest
-```
-
-## Layout
+## Project layout
 
 ```
-antiphon/
-  core/          # Qt-free: player, library, downloader, equalizer
+minuett/
+  core/          # Qt-free: player, library, downloader, equalizer, visualizer, accounts
   ui/            # PySide6 window, views, dialogs
-    skin/        # base.qss, painted widgets, themes/*.css
-  selftest.py    # antiphon --self-test
+    skin/        # base.qss, painted widgets, icons, themes/*.css
+  selftest.py    # minuett --self-test
 packaging/       # desktop file, metainfo, icon, flatpak/, appimage/
 tools/           # packaging helpers
 tests/
-docs/            # PLAN.md, THEMES.md
+docs/            # PLAN.md (design notes), THEMES.md
 ```
 
-## Note on downloading
+## Credits
 
-Downloading from YouTube is against its terms outside the cases it permits.
-The downloader is intended for personal use of content you have the right to keep.
+Minuett stands on these projects:
+
+| Project | Used for | License |
+|---|---|---|
+| [Python](https://www.python.org) | language | PSF |
+| [Qt 6](https://www.qt.io) / [PySide6](https://doc.qt.io/qtforpython-6/) | interface | LGPL-3.0 |
+| [GStreamer](https://gstreamer.freedesktop.org) | playback, equalizer (`equalizer-nbands`), analyzer (`spectrum`) | LGPL-2.1+ |
+| [PyGObject](https://pygobject.gnome.org) | GStreamer bindings | LGPL-2.1+ |
+| [yt-dlp](https://github.com/yt-dlp/yt-dlp) and [yt-dlp-ejs](https://github.com/yt-dlp/ejs) | YouTube and YouTube Music | Unlicense |
+| [FFmpeg](https://ffmpeg.org) | audio extraction and conversion | LGPL-2.1+ / GPL |
+| [Deno](https://deno.com) | JavaScript runtime yt-dlp needs for YouTube | MIT |
+| [mutagen](https://github.com/quodlibet/mutagen) | reading and writing tags and cover art | GPL-2.0-or-later |
+| [SQLite](https://sqlite.org) | library database | public domain |
+| [watchdog](https://github.com/gorakhargosh/watchdog) | folder monitoring | Apache-2.0 |
+| [SecretStorage](https://github.com/mitya57/secretstorage), [cryptography](https://cryptography.io) | reading browser sign-ins for YouTube Music | BSD-3-Clause / Apache-2.0 or BSD |
+| [Flatpak](https://flatpak.org) with the GNOME runtime, [AppImage](https://appimage.org) | packaging | LGPL-2.1+ / MIT |
+
+Theme palettes are Minuett's own interpretations of
+[One Dark Pro](https://github.com/Binaryify/OneDark-Pro),
+[Dracula](https://draculatheme.com), [Monokai Pro](https://monokai.pro),
+[Night Owl](https://github.com/sdras/night-owl-vscode-theme),
+[SynthWave '84](https://github.com/robb0wen/synthwave-vscode),
+[Cobalt2](https://github.com/wesbos/cobalt2-vscode), [Nord](https://www.nordtheme.com),
+[Gruvbox](https://github.com/morhetz/gruvbox),
+[GitHub Theme](https://github.com/primer/github-vscode-theme) and
+[Catppuccin](https://catppuccin.com), chosen from the most-installed list on
+[vscodethemes.com](https://vscodethemes.com). The look is modelled on
+RealPlayer 10 and Winamp. Minuett isn't affiliated with any of these, or with
+YouTube, Spotify or Pandora.
+
+## How it was made
+
+Minuett was built with **Claude Opus 5.5** (Anthropic) in Claude Code, in a
+single long session that ran from the design plan to packaging.
+
+Token estimate for the session so far: the working context reached about
+**870,000 tokens**. Counting every model call (each re-reads the
+conversation, mostly from cache), the total processed is roughly
+**100–150 million input tokens** and about **0.5 million output tokens**.
+These are estimates from the session's usage readout, not a billing
+statement.
+
+## A note on downloading
+
+Downloading from YouTube is only permitted in the cases its terms allow. Use
+the downloader for content you have the right to keep.
+
+## License
+
+Copyright © 2026 Yudhanjaya Wijeratne
+
+Minuett is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 2 of the License, or (at your option) any later
+version. See [LICENSE](LICENSE).
+
+GPL-2.0-or-later is the most permissive GPL licence available here: the
+bundled tag library, mutagen, is GPL-2.0-or-later, and "or later" keeps
+Minuett compatible with the Apache-2.0 components under GPL-3.0.

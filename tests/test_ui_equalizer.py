@@ -6,8 +6,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6.QtWidgets")
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
-from antiphon.core.equalizer import BUILTIN_PRESETS, DEFAULT_Q, EqState, PresetStore  # noqa: E402
-from antiphon.ui.views.equalizer_view import EqualizerView  # noqa: E402
+from minuett.core.equalizer import BUILTIN_PRESETS, DEFAULT_Q, EqState, PresetStore  # noqa: E402
+from minuett.ui.views.equalizer_view import EqualizerView  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -53,7 +53,7 @@ def test_preset_load_save_delete(view, monkeypatch):
     assert [b.gain for b in view.state.bands] == [b.gain for b in BUILTIN_PRESETS["Rock"].bands]
     assert view.strips[0].slider.value() == 45 and view.preamp.value() == -45
     assert not view.delete_btn.isEnabled()
-    monkeypatch.setattr("antiphon.ui.views.equalizer_view.QInputDialog.getText",
+    monkeypatch.setattr("minuett.ui.views.equalizer_view.QInputDialog.getText",
                         lambda *a, **k: ("Mine", True))
     view._save_preset()
     assert view.preset_box.currentText() == "Mine" and view.delete_btn.isEnabled()

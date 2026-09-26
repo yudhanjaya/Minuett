@@ -4,7 +4,7 @@ import pytest
 
 gst = pytest.importorskip("gi.repository.Gst")
 
-from antiphon.core.player import Player, QueueItem, Repeat, State  # noqa: E402
+from minuett.core.player import Player, QueueItem, Repeat, State  # noqa: E402
 
 
 def silent_player() -> Player:
@@ -91,8 +91,8 @@ def test_bad_file_is_skipped(tmp_path, tone):
 
 
 def test_plays_gapless_through_equalizer_with_live_changes(tmp_path, tone):
-    from antiphon.core.eq_filter import EqualizerFilter
-    from antiphon.core.equalizer import BUILTIN_PRESETS
+    from minuett.core.eq_filter import EqualizerFilter
+    from minuett.core.equalizer import BUILTIN_PRESETS
 
     files = [tone(tmp_path / f"{i}.mp3", seconds=0.8) for i in range(2)]
     p = silent_player()

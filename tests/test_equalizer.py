@@ -2,7 +2,7 @@ import json
 
 import pytest
 
-from antiphon.core.equalizer import (
+from minuett.core.equalizer import (
     BUILTIN_PRESETS, ISO_FREQS, Band, EqState, PresetStore, band_response_db, load_state,
     log_freqs, peak_db, response_db, save_state,
 )

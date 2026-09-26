@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.yudhanjaya.Minuett</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-2.0-or-later</project_license>
+  <name>Minuett</name>
+  <summary>Music player with playlist sync and a parametric EQ</summary>
+  <description>
+    <p>
+      Minuett is a music player in the spirit of RealPlayer 10: a glossy
+      transport strip, a library you can browse by playlist, artist, album,
+      genre or year, and a Now Playing queue.
+    </p>
+    <ul>
+      <li>Import YouTube playlists and keep each one up to date individually;
+          only newly added songs are downloaded</li>
+      <li>Audio kept in its original format (Opus or M4A), with MP3 as an option</li>
+      <li>Tag editor with batch editing and cover art</li>
+      <li>10-band parametric equalizer with a live response curve and presets</li>
+      <li>Gapless playback</li>
+      <li>Themes written in CSS, including looks based on popular editor themes</li>
+    </ul>
+    <p>
+      Downloading from YouTube is only permitted in the cases its terms allow.
+      Use the downloader for content you have the right to keep.
+    </p>
+  </description>
+  <launchable type="desktop-id">io.github.yudhanjaya.Minuett.desktop</launchable>
+  <provides>
+    <binary>minuett</binary>
+  </provides>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.1.0" date="2026-09-26">
+      <description>
+        <p>First release: playback, library, tag editing, playlist sync, equalizer and themes.</p>
+      </description>
+    </release>
+  </releases>
+</component>

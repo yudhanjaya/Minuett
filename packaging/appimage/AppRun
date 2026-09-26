@@ -1,5 +1,5 @@
 #!/bin/sh
-# Antiphon AppImage entry point: bundled Python, GObject introspection,
+# Minuett AppImage entry point: bundled Python, GObject introspection,
 # GStreamer plugins, ffmpeg and Deno, isolated from the host's copies.
 HERE="$(dirname "$(readlink -f "$0")")"
 USR="$HERE/usr"
@@ -14,12 +14,12 @@ export GST_PLUGIN_SYSTEM_PATH_1_0="$USR/lib/gstreamer-1.0"
 export GST_PLUGIN_PATH_1_0="$USR/lib/gstreamer-1.0"
 export GST_PLUGIN_SCANNER_1_0="$USR/libexec/gst-plugin-scanner"
 # A registry per AppImage build, so plugins from different versions never mix.
-CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/antiphon"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}/minuett"
 mkdir -p "$CACHE"
 export GST_REGISTRY_1_0="$CACHE/gst-registry-@BUILD_ID@.bin"
 # yt-dlp finds ffmpeg and Deno on PATH.
 export PATH="$USR/bin:$PATH"
 
 # -P: never import from the current directory (python -m would otherwise
-# prefer an "antiphon" folder there over the bundled package).
-exec "$USR/bin/python3.12" -s -P -m antiphon "$@"
+# prefer an "minuett" folder there over the bundled package).
+exec "$USR/bin/python3.12" -s -P -m minuett "$@"

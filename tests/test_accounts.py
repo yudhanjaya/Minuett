@@ -9,11 +9,11 @@ from pathlib import Path
 
 import pytest
 
-from antiphon.core import accounts
-from antiphon.core.accounts import (
+from minuett.core import accounts
+from minuett.core.accounts import (
     Accounts, SpotifyAccount, YouTubeAccount, installed_browsers, ytdlp_cookie_options,
 )
-from antiphon.core.spotify_auth import (
+from minuett.core.spotify_auth import (
     LoopbackReceiver, NotOwnPlaylist, SpotifyClient, SpotifyError, authorize_url, challenge_for,
     exchange_code,
 )
@@ -55,7 +55,7 @@ def test_ytdlp_cookie_options(tmp_path):
 
 
 def test_base_options_carry_the_sign_in(monkeypatch, tmp_path):
-    from antiphon.core.downloader.playlist import base_options
+    from minuett.core.downloader.playlist import base_options
     monkeypatch.setattr(accounts, "accounts_path", lambda: tmp_path / "a.json")
     assert "cookiesfrombrowser" not in base_options()
     accounts.save(Accounts(YouTubeAccount(method="browser", browser="firefox")))
@@ -218,7 +218,7 @@ def test_exchange_code_and_refresh_when_expired():
 
 
 def test_playlists_pagination_and_listing():
-    from antiphon.core.downloader.sources.spotify import listing_from_api
+    from minuett.core.downloader.sources.spotify import listing_from_api
     fake = FakeSpotify()
     client = SpotifyClient(SpotifyAccount(client_id="c", refresh_token="r", user_id="me"),
                            fetch=fake, clock=lambda: 0)
@@ -240,12 +240,12 @@ def test_someone_elses_playlist_is_403():
 
 
 def test_spotify_link_uses_api_when_connected_and_falls_back(monkeypatch, tmp_path):
-    from antiphon.core.downloader.sources import spotify
+    from minuett.core.downloader.sources import spotify
     monkeypatch.setattr(accounts, "accounts_path", lambda: tmp_path / "a.json")
     accounts.save(Accounts(spotify=SpotifyAccount(client_id="c", refresh_token="r")))
     fake = FakeSpotify()
-    monkeypatch.setattr("antiphon.core.spotify_auth._urllib_fetch", fake)
-    monkeypatch.setattr("antiphon.core.spotify_auth.SpotifyClient.__init__.__defaults__",
+    monkeypatch.setattr("minuett.core.spotify_auth._urllib_fetch", fake)
+    monkeypatch.setattr("minuett.core.spotify_auth.SpotifyClient.__init__.__defaults__",
                         (fake, None, __import__("time").time))
     lst = spotify._api_listing("P1")
     assert lst is not None and len(lst.entries) == 120 and not lst.truncated
@@ -267,8 +267,8 @@ def app():
 
 def test_accounts_panel_and_dialogs_open(app, monkeypatch, tmp_path):
     monkeypatch.setattr(accounts, "accounts_path", lambda: tmp_path / "a.json")
-    from antiphon.ui.dialogs.accounts import SpotifyConnectDialog, YouTubeSignInDialog
-    from antiphon.ui.views.accounts_panel import AccountsPanel
+    from minuett.ui.dialogs.accounts import SpotifyConnectDialog, YouTubeSignInDialog
+    from minuett.ui.views.accounts_panel import AccountsPanel
     panel = AccountsPanel()
     assert panel.yt_btn.text() == "Sign In" and panel.sp_btn.text() == "Connect"
     accounts.save(Accounts(YouTubeAccount(method="browser", browser="brave", signed_in=True, premium=True),

@@ -4,13 +4,13 @@ from pathlib import Path
 
 import pytest
 
-from antiphon.core.downloader.playlist import (
+from minuett.core.downloader.playlist import (
     Listing, RemoteEntry, listing_from_info, normalise_url, reconcile,
 )
-from antiphon.core.downloader.worker import (
+from minuett.core.downloader.worker import (
     Downloader, JobStatus, Preferences, jobs_for, retry_failed, tags_from_info,
 )
-from antiphon.core.library.db import DONE, FAILED, NEW, REMOVED, UNAVAILABLE, LibraryDB, Track
+from minuett.core.library.db import DONE, FAILED, NEW, REMOVED, UNAVAILABLE, LibraryDB, Track
 
 URL = "https://www.youtube.com/playlist?list=PLtest1234567"
 
@@ -212,8 +212,8 @@ def test_cancel_stops_queue(tmp_path, db):
 
 # --- live streams, retries, unavailable videos --------------------------------
 
-from antiphon.core.downloader.worker import classify_error  # noqa: E402
-from antiphon.core.library.db import LIVE  # noqa: E402
+from minuett.core.downloader.worker import classify_error  # noqa: E402
+from minuett.core.library.db import LIVE  # noqa: E402
 
 
 def test_live_streams_are_skipped_not_queued(db):
@@ -294,7 +294,7 @@ def test_unavailable_is_not_retried_or_counted_pending(db, tmp_path):
 
 # --- output format ------------------------------------------------------------
 
-from antiphon.core.downloader.worker import normalise_format, ytdlp_options  # noqa: E402
+from minuett.core.downloader.worker import normalise_format, ytdlp_options  # noqa: E402
 
 
 def test_format_preferences():

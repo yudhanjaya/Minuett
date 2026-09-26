@@ -3,7 +3,7 @@
 # Needs: flatpak, the org.flatpak.Builder app, org.gnome.Sdk//50.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
-APP=io.github.antiphon.Antiphon
+APP=io.github.yudhanjaya.Antiphon
 VERSION=$(python3 -c 'import tomllib;print(tomllib.load(open("pyproject.toml","rb"))["project"]["version"])')
 mkdir -p dist
 flatpak run org.flatpak.Builder --user --force-clean --repo=build-repo \

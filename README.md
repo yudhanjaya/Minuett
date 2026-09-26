@@ -56,7 +56,7 @@ flatpak install --user Antiphon-0.1.0-x86_64.flatpak
 The Flatpak can read and write `~/Music`. For music elsewhere, grant access:
 
 ```bash
-flatpak override --user --filesystem=/path/to/music io.github.antiphon.Antiphon
+flatpak override --user --filesystem=/path/to/music io.github.yudhanjaya.Antiphon
 ```
 
 **AppImage**: make it executable and run it. It bundles Python, GStreamer,
@@ -71,7 +71,7 @@ Either package can check itself: it decodes each audio format through the EQ
 and confirms yt-dlp can find ffmpeg and a JavaScript runtime.
 
 ```bash
-flatpak run io.github.antiphon.Antiphon --self-test
+flatpak run io.github.yudhanjaya.Antiphon --self-test
 ```
 
 ## Building the packages

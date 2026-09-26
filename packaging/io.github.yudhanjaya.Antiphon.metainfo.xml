@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <component type="desktop-application">
-  <id>io.github.antiphon.Antiphon</id>
+  <id>io.github.yudhanjaya.Antiphon</id>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>GPL-3.0-or-later</project_license>
   <name>Antiphon</name>
@@ -25,7 +25,7 @@
       Use the downloader for content you have the right to keep.
     </p>
   </description>
-  <launchable type="desktop-id">io.github.antiphon.Antiphon.desktop</launchable>
+  <launchable type="desktop-id">io.github.yudhanjaya.Antiphon.desktop</launchable>
   <provides>
     <binary>antiphon</binary>
   </provides>

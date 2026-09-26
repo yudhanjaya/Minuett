@@ -17,7 +17,7 @@ def main() -> int:
 
     app = QApplication(sys.argv)
     app.setApplicationName("Antiphon")
-    app.setDesktopFileName("io.github.antiphon.Antiphon")
+    app.setDesktopFileName("io.github.yudhanjaya.Antiphon")
     themes = ThemeManager()
     install(themes)
     themes.apply(QSettings("antiphon", "antiphon").value("ui/theme", "realplayer-classic", type=str))

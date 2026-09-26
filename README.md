@@ -2,6 +2,8 @@
 
 If Winamp was my first real introduction to the idea of a playlist, then Realplayer 10 (in 2005) was my introduction to the jukebox-style "library" of music sorted by name and artis and nicely catalogued, instead of being in a mess of folders on my drive.
 
+![Minuett's library, browsing a playlist of royalty-free piano pieces](screenshots/library.png)
+
 Minuett is a return to those times, in spirit. It is a library-first music player for Linux that is inspired by Realplayer 10 and Winamp. It has top bar with a spectrum analyzer, a 10-band parametric equalizer.
 
 And because this is not 2004, it allows you to import playlists pulled in from YouTube, YouTube Music, Spotify and Pandora. When you import a playlist, Minuett will download the tracks, covert them to .opus (which is a free and open file format) and populate your library automatically. You can also import folders as playlists. 
@@ -25,6 +27,8 @@ The DMCA prohibits downloading content you don't have the rights to. I personall
 * **Nostalgic Visuals:** Features a Winamp-style post-EQ spectrum analyzer and glowing transport sliders.
 * **Toolbar Mode:** Instantly shrink the player to a minimal transport strip with a hotkey (`Ctrl+T`).
 
+![The 10-band parametric equalizer with its live response curve](screenshots/eq.png)
+
 **Smart Library Management**
 
 * **Fast & Lightweight:** Powered by SQLite with incremental folder scanning (skips unchanged files for rapid rescans).
@@ -39,10 +43,17 @@ The DMCA prohibits downloading content you don't have the rights to. I personall
 * **Non-Destructive Updates:** Check playlists individually for updates. It only downloads new additions, never overwrites your local edits, and won't delete songs you want to keep if they vanish upstream.
 * **Live Folders:** Import a local folder as a playlist; added or removed files sync automatically on rescan.
 
+![Downloading a playlist, song by song](screenshots/downloads.png)
+
 **Theming & Customization**
 
 * **11 Built-In Themes:** Includes RealPlayer Classic (default), Dracula, Nord, Monokai Pro, Catppuccin Latte, and more. All default themes meet WCAG AA text contrast standards.
 * **Live CSS Reloading:** Tweak colors, typography, and spacing by editing a simple CSS file of variables—changes apply instantly as you save.
+
+<p>
+  <img src="screenshots/library-white.png" width="49%" alt="The library in a light theme">
+  <img src="screenshots/downloads-white.png" width="49%" alt="Downloads in a light theme">
+</p>
 
 **Privacy and local-first**
 - No telemetry, no accounts of its own, no analytics.

@@ -30,6 +30,7 @@ from .skin.components import (
 )
 from .skin.icons import icon, pixmap
 from .skin.widgets import GlowSlider, StatusDisplay, TransportButton
+from .views.accounts_panel import AccountsPanel
 from .views.now_playing_view import NowPlayingView, QueueList
 from .views.browse_tree import BrowseTree
 from .views.downloads_view import DownloadsView
@@ -271,7 +272,9 @@ class MainWindow(QMainWindow):
         self.queue_count.setObjectName("Muted")
         qhead.addWidget(self.queue_count)
         ql.addLayout(qhead)
-        ql.addWidget(self.queue_list)
+        ql.addWidget(self.queue_list, 1)
+        self.accounts_panel = AccountsPanel()
+        ql.addWidget(self.accounts_panel)
         self.queue_pane = queue_pane
 
         splitter = QSplitter()

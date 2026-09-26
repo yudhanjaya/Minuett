@@ -14,6 +14,7 @@ dependencies = [
   "mutagen>=1.47",
   "watchdog>=4.0",
   "yt-dlp[default]",  # [default] brings yt-dlp-ejs, needed for YouTube
+  "secretstorage>=3.3",  # lets yt-dlp decrypt Chromium-family browser cookies (YouTube sign-in)
 ]
 
 [project.optional-dependencies]

@@ -38,6 +38,15 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
       length (Spotify's and Pandora's audio is DRM-protected and never
       downloaded); weak matches are reported instead of guessed. Every track
       records its source (YouTube, YouTube Music, Spotify, Pandora…) and link.
+- [x] Optional sign-ins (Accounts, bottom of the right sidebar):
+      **YouTube Music**: with a Premium account, downloads get Premium's
+      higher-bitrate audio. Antiphon reuses your browser's sign-in (or an
+      exported cookies file) and never sees your password. **Spotify**:
+      connect your own registered Spotify app (the owner needs Premium) to
+      import your own and collaborative playlists in full. Spotify sign-in
+      doesn't change audio quality; its audio is never downloaded.
+- [x] Winamp-style spectrum analyzer in the display panel, in theme colours
+      (View ▸ Visualizer).
 - [x] Opus by default at the best available quality: YouTube's Opus streams
       are copied untouched, anything else is converted once at 256 kbps.
       Original format and MP3 V0 are options in Preferences.
@@ -63,7 +72,9 @@ Download from `dist/` (or build it yourself, below).
 flatpak install --user Antiphon-0.1.0-x86_64.flatpak
 ```
 
-The Flatpak can read and write `~/Music`. For music elsewhere, grant access:
+The Flatpak can read and write `~/Music`. For music elsewhere, grant access
+(the same kind of override lets it read a browser's sign-in for YouTube Music;
+Accounts ▸ YouTube Music shows the exact command):
 
 ```bash
 flatpak override --user --filesystem=/path/to/music io.github.yudhanjaya.Antiphon

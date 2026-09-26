@@ -2,13 +2,18 @@
   "name": "python-deps",
   "buildsystem": "simple",
   "build-commands": [
-    "pip3 install --verbose --no-index --find-links=\"file://${PWD}\" --prefix=${FLATPAK_DEST} --no-build-isolation PySide6_Essentials==6.11.2 brotli==1.2.0 certifi==2026.7.22 charset-normalizer==3.5.1 idna==3.20 mutagen==1.48.1 pycryptodomex==3.23.0 requests==2.34.2 shiboken6==6.11.2 urllib3==2.8.0 watchdog==6.0.0 websockets==17.1 yt-dlp-ejs==0.8.0 yt-dlp==2026.8.19"
+    "pip3 install --verbose --no-index --find-links=\"file://${PWD}\" --prefix=${FLATPAK_DEST} --no-build-isolation PySide6_Essentials==6.11.2 SecretStorage==3.5.0 brotli==1.2.0 certifi==2026.7.22 cffi==2.1.1 charset-normalizer==3.5.1 cryptography==50.0.1 idna==3.20 jeepney==0.9.0 mutagen==1.48.1 pycparser==3.0 pycryptodomex==3.23.0 requests==2.34.2 shiboken6==6.11.2 urllib3==2.8.0 watchdog==6.0.0 websockets==17.1 yt-dlp-ejs==0.8.0 yt-dlp==2026.8.19"
   ],
   "sources": [
     {
       "type": "file",
       "url": "https://files.pythonhosted.org/packages/0b/a7/71ac2cff56fec219ed242bb11b8efb69fcc4bec75db06fb7bfe35de520e6/certifi-2026.7.22-py3-none-any.whl",
       "sha256": "62f22742b58a1a33014a2b6b706588a8d7e2a88ae7bd1a6ebe8c992928483775"
+    },
+    {
+      "type": "file",
+      "url": "https://files.pythonhosted.org/packages/0c/c3/44f3fbbfa403ea2a7c779186dc20772604442dde72947e7d01069cbe98e3/pycparser-3.0-py3-none-any.whl",
+      "sha256": "b727414169a36b7d524c1c3e31839a521725078d7b2ff038656844266160a992"
     },
     {
       "type": "file",
@@ -42,8 +47,18 @@
     },
     {
       "type": "file",
+      "url": "https://files.pythonhosted.org/packages/85/66/6ccca4722987ddedaa7fc9c3f4708af7431f5535666c174350830888c6b7/cryptography-50.0.1-cp311-abi3-manylinux_2_34_x86_64.whl",
+      "sha256": "51afcfceb15597cf2635068e4ac9a56b2abde622edde17f37d85fd7b5306497a"
+    },
+    {
+      "type": "file",
       "url": "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl",
       "sha256": "0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3"
+    },
+    {
+      "type": "file",
+      "url": "https://files.pythonhosted.org/packages/95/95/86342356ff5953b3fb06f7ef7c5bee212d45e770abc7218d451b9148313c/cffi-2.1.1-cp313-cp313-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+      "sha256": "a931079504ecc49efed7744c476a5c343a92fabf66dec2db95edb1b2fdc770e2"
     },
     {
       "type": "file",
@@ -57,8 +72,18 @@
     },
     {
       "type": "file",
+      "url": "https://files.pythonhosted.org/packages/b2/a3/e137168c9c44d18eff0376253da9f1e9234d0239e0ee230d2fee6cea8e55/jeepney-0.9.0-py3-none-any.whl",
+      "sha256": "97e5714520c16fc0a45695e5365a2e11b81ea79bba796e26f9f1d178cb182683"
+    },
+    {
+      "type": "file",
       "url": "https://files.pythonhosted.org/packages/b5/e8/dbf020b4d98251a9860752a094d09a65e1b436ad181faf929983f697048f/watchdog-6.0.0-py3-none-manylinux2014_x86_64.whl",
       "sha256": "20ffe5b202af80ab4266dcd3e91aae72bf2da48c0d33bdb15c66658e685e94e2"
+    },
+    {
+      "type": "file",
+      "url": "https://files.pythonhosted.org/packages/b7/46/f5af3402b579fd5e11573ce652019a67074317e18c1935cc0b4ba9b35552/secretstorage-3.5.0-py3-none-any.whl",
+      "sha256": "0ce65888c0725fcb2c5bc0fdb8e5438eece02c523557ea40ce0703c266248137"
     },
     {
       "type": "file",

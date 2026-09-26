@@ -75,8 +75,53 @@ def listing_from_embed(html: str, kind: str, sid: str) -> Listing:
                    entries=entries, source="spotify", truncated=len(entries) >= EMBED_LIMIT)
 
 
+def listing_from_api(sid: str, meta: dict, tracks: list[dict]) -> Listing:
+    """A full listing from the Web API (your own/collaborative playlists)."""
+    entries = []
+    for t in tracks:
+        uri = t.get("uri") or ""
+        if not uri.startswith("spotify:track:"):
+            continue
+        entries.append(RemoteEntry(
+            position=len(entries), item_id=uri, title=t.get("name"),
+            artist=", ".join(a.get("name", "") for a in t.get("artists") or [] if a.get("name")) or None,
+            album=(t.get("album") or {}).get("name"),
+            isrc=(t.get("external_ids") or {}).get("isrc"),
+            duration=(t.get("duration_ms") or 0) / 1000 or None,
+            url=f"https://open.spotify.com/track/{uri.rsplit(':', 1)[-1]}",
+            needs_match=True))
+    return Listing(url=canonical_url("playlist", sid), playlist_id=sid,
+                   title=meta.get("name") or "Spotify playlist",
+                   uploader=(meta.get("owner") or {}).get("display_name"),
+                   entries=entries, source="spotify", truncated=False)
+
+
+def _api_listing(sid: str) -> Listing | None:
+    """Full listing through the signed-in API, or None to use the public page."""
+    from antiphon.core import accounts
+    from antiphon.core.spotify_auth import NotOwnPlaylist, SpotifyClient, SpotifyError
+    accts = accounts.load()
+    if not accts.spotify.connected:
+        return None
+
+    def save_tokens(acct):
+        accts.spotify = acct
+        accounts.save(accts)
+    try:
+        client = SpotifyClient(accts.spotify, on_tokens=save_tokens)
+        return listing_from_api(sid, client.playlist(sid), client.playlist_items(sid))
+    except NotOwnPlaylist:
+        return None  # someone else's playlist: the API won't list it
+    except SpotifyError:
+        return None  # fall back rather than fail the import
+
+
 def fetch_spotify_listing(url: str, timeout: float = 20) -> Listing:
     kind, sid = parse_spotify_url(url)
+    if kind == "playlist":
+        listing = _api_listing(sid)
+        if listing is not None:
+            return listing
     req = urllib.request.Request(f"https://open.spotify.com/embed/{kind}/{sid}",
                                  headers={"User-Agent": _UA, "Accept-Language": "en"})
     try:

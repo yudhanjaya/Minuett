@@ -9,12 +9,14 @@ from pathlib import Path
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox, QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QHBoxLayout, QLabel,
-    QLineEdit, QTabWidget, QVBoxLayout, QWidget,
+    QLineEdit, QListWidget, QListWidgetItem, QTabWidget, QVBoxLayout, QWidget,
 )
 
 from antiphon.core.downloader.playlist import ListingError, source_of_url
 from antiphon.core.downloader.sources.files import SOURCES, parse_export
+from antiphon.core import accounts
 from antiphon.ui.skin.components import button, label, space
+from antiphon.ui.tasks import run_in_thread
 
 LINK_HELP = ("Paste a playlist link from YouTube, YouTube Music or Spotify (playlists and albums). "
              "The whole list is shown before anything downloads.")
@@ -95,6 +97,23 @@ class ImportPlaylistDialog(QDialog):
         self.tabs = QTabWidget()
         self.tabs.addTab(link, "Link")
         self.tabs.addTab(file_tab, "File")
+        # Your own Spotify playlists, read in full through your account.
+        self.mine = QListWidget()
+        self.mine.setAccessibleName("Your Spotify playlists")
+        self.mine.itemSelectionChanged.connect(self._validate)
+        self.mine.itemDoubleClicked.connect(lambda *_: self._accept())
+        self.mine_status = label("", "Muted", "sm")
+        self.mine_status.setWordWrap(True)
+        mine_tab = QWidget()
+        ml = QVBoxLayout(mine_tab)
+        ml.setContentsMargins(space(4), space(4), space(4), space(4))
+        ml.setSpacing(space(2))
+        ml.addWidget(self.mine_status)
+        ml.addWidget(self.mine, 1)
+        self._mine_index = -1
+        if accounts.load().spotify.connected:
+            self._mine_index = self.tabs.addTab(mine_tab, "Your Spotify")
+            self._load_mine()
         self.tabs.currentChanged.connect(self._validate)
 
         self.buttons = QDialogButtonBox(
@@ -136,8 +155,41 @@ class ImportPlaylistDialog(QDialog):
                 self.name_edit.setText(export.name or Path(path).stem.replace("_", " "))
         self._validate()
 
+    def _load_mine(self) -> None:
+        from antiphon.core.spotify_auth import SpotifyClient
+        self.mine_status.setText("Loading your playlists…")
+        accts = accounts.load()
+
+        def save_tokens(acct):
+            accts.spotify = acct
+            accounts.save(accts)
+
+        def done(result, err):
+            if err:
+                self.mine_status.setText(f"Couldn't load your playlists: {err}")
+                return
+            for pl in result:
+                count = f"{pl.tracks} songs" if pl.tracks is not None else ""
+                whose = "yours" if pl.owned else f"by {pl.owner}" if pl.owner else ""
+                item = QListWidgetItem(f"{pl.name}   ·   {' · '.join(x for x in (count, whose) if x)}")
+                item.setData(Qt.ItemDataRole.UserRole, pl.id)
+                if not pl.owned:
+                    # Followed playlists: the API won't list their songs, so the
+                    # import falls back to the public page (first 100 songs).
+                    item.setToolTip("You follow this playlist; Spotify only lets Antiphon read "
+                                    "the first 100 songs of playlists you don't own.")
+                self.mine.addItem(item)
+            self.mine_status.setText("Choose a playlist. Ones you own or collaborate on are "
+                                     "imported in full." if result else "No playlists found.")
+            self._validate()
+        run_in_thread(self, lambda: SpotifyClient(accts.spotify, on_tokens=save_tokens).my_playlists(),
+                      done)
+
     def _validate(self, *_) -> None:
         ok = self.buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if self.tabs.currentIndex() == self._mine_index and self._mine_index >= 0:
+            ok.setEnabled(self.mine.currentItem() is not None)
+            return
         if self.tabs.currentIndex() == 0:
             url = self.url_edit.text().strip()
             source = source_of_url(url) if url else None
@@ -149,6 +201,14 @@ class ImportPlaylistDialog(QDialog):
             ok.setEnabled(bool(self.path and self.name_edit.text().strip()))
 
     def _accept(self) -> None:
+        if self._mine_index >= 0 and self.tabs.currentIndex() == self._mine_index:
+            item = self.mine.currentItem()
+            if item is None:
+                return
+            self.mode = "link"
+            self.url = f"https://open.spotify.com/playlist/{item.data(Qt.ItemDataRole.UserRole)}"
+            self.accept()
+            return
         if self.tabs.currentIndex() == 0:
             self.mode, self.url = "link", self.url_edit.text().strip()
         else:

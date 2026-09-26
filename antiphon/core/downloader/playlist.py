@@ -127,11 +127,16 @@ def js_runtimes() -> dict[str, dict]:
     return found
 
 
-def base_options() -> dict:
+def base_options(signed_in: bool = True) -> dict:
+    """Options shared by every yt-dlp call. Includes the YouTube sign-in (if
+    one is set up) so Premium accounts get Premium formats."""
     opts: dict = {"quiet": True, "no_warnings": True, "noprogress": True}
     runtimes = js_runtimes()
     if runtimes:
         opts["js_runtimes"] = runtimes
+    if signed_in:
+        from antiphon.core import accounts
+        opts.update(accounts.ytdlp_cookie_options(accounts.load().youtube))
     return opts
 
 

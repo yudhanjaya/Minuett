@@ -44,6 +44,7 @@ QMainWindow::separator { background: var(--border); width: 1px; height: 1px; }
 }
 #QueuePane, #BrowsePane { background: var(--panel); }
 #QueuePane QListView, #BrowsePane QTreeView { background: var(--panel); }
+#AccountsPanel { background: var(--panel); border: none; border-top: 1px solid var(--border); }
 #ViewHeader {
   background: var(--window);
   border: none;

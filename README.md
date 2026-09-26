@@ -8,7 +8,7 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
 
 ## Status
 
-**Phases 1–4 of 5 done: playback, library, metadata editing, playlist downloader, equalizer.**
+**All five build phases done: playback, library, metadata editing, playlist downloader, equalizer, and the skin.**
 
 - [x] GStreamer playbin wrapper: queue, gapless transitions, repeat, seek,
       volume, broken files skipped. Bus polled from a 50 ms `QTimer`.
@@ -16,7 +16,9 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
       MP3, M4A, Opus, FLAC, Ogg.
 - [x] Basic window: transport strip, nav rail, sortable/searchable library
       table, Now Playing queue pane, compact toolbar mode (Ctrl+T, Esc exits).
-- [ ] Arrange-by browse tree, folder watching (watchdog)
+- [x] Arrange-by browse tree (Playlist, Artist/Album, Album Artist, Album,
+      Genre, Year, Date Added); library refreshes in place, keeping selection.
+- [ ] Folder watching (watchdog)
 - [x] Phase 2: metadata editing. Double-click a tag cell (or F2) to edit it
       inline; select rows and press Ctrl+E for the batch editor with cover art
       (view, replace, remove). Files are written first and the database only
@@ -34,7 +36,10 @@ See [docs/PLAN.md](docs/PLAN.md) for the full design and build order.
       live response curve, clipping hint, JSON presets (Flat, Rock, Vocal, Bass
       Boost, Treble Cut, plus your own). The drawn curve is checked against
       GStreamer's actual output in the tests (within 0.05 dB).
-- [ ] Phase 5: RealPlayer skin
+- [x] Phase 5: RealPlayer 10-style skin with custom-painted transport, glowing
+      sliders, EQ faders and knobs, and an LCD-style display. Themes are CSS
+      files: 11 built in (RealPlayer Classic plus ten VS Code favourites), and
+      you can write your own. See [docs/THEMES.md](docs/THEMES.md).
 - [ ] Flatpak packaging
 
 ## Running from source

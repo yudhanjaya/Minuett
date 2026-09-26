@@ -1,0 +1,62 @@
+/* One Dark Pro, after the VS Code theme by binaryify (Atom's One Dark). */
+:root {
+  --name: "One Dark Pro";
+  --dark: true;
+
+  --window: #282c34;
+  --surface: #282c34;
+  --surface-alt: #2c313a;
+  --panel: #21252b;
+  --border: #181a1f;
+  --text: #abb2bf;
+  --text-muted: #5c6370;
+  --accent: #61afef;
+  --accent-text: #1e2127;
+  --selection: #3e4452;
+  --selection-text: #d7dae0;
+  --hover: #2c313c;
+  --input: #1d1f23;
+  --button: #333842;
+  --button-hover: #3e4452;
+  --button-text: #abb2bf;
+  --scrollbar: #4e5666;
+  --scrollbar-hover: #5c6370;
+  --tooltip: #21252b;
+  --tooltip-text: #abb2bf;
+  --warning: #e5c07b;
+
+  --chrome-top: #2f343e;
+  --chrome-bottom: #1e2127;
+  --chrome-edge: #181a1f;
+  --chrome-text: #abb2bf;
+  --btn-top: #3b414d;
+  --btn-bottom: #262a31;
+  --btn-ring: #16181c;
+  --btn-icon: #d7dae0;
+  --play-top: #8cc5f5;
+  --play-bottom: #3d7fc4;
+  --play-icon: #1e2127;
+  --gloss: rgba(255, 255, 255, 0.28);
+
+  --groove: #1b1d23;
+  --groove-fill: #61afef;
+  --thumb: #d7dae0;
+  --glow: #61afef;
+
+  --lcd: #1b1e24;
+  --lcd-text: #98c379;
+  --lcd-dim: #5c6370;
+  --lcd-border: #131519;
+
+  --eq-curve: #c678dd;
+  --eq-fill: rgba(198, 120, 221, 0.18);
+  --eq-grid: #3a3f4b;
+  --fader-cap: #abb2bf;
+  --knob-top: #3b414d;
+  --knob-bottom: #23272e;
+
+  --font: "Inter", "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "Fira Code", "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  --radius: 4px;
+}

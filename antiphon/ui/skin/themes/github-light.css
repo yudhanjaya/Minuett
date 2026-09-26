@@ -1,0 +1,62 @@
+/* GitHub Light, after the official GitHub theme for VS Code. */
+:root {
+  --name: "GitHub Light";
+  --dark: false;
+
+  --window: #ffffff;
+  --surface: #ffffff;
+  --surface-alt: #f6f8fa;
+  --panel: #f6f8fa;
+  --border: #d0d7de;
+  --text: #1f2328;
+  --text-muted: #656d76;
+  --accent: #0969da;
+  --accent-text: #ffffff;
+  --selection: #ddf4ff;
+  --selection-text: #0a3069;
+  --hover: #eaeef2;
+  --input: #ffffff;
+  --button: #f6f8fa;
+  --button-hover: #eaeef2;
+  --button-text: #24292f;
+  --scrollbar: #d0d7de;
+  --scrollbar-hover: #afb8c1;
+  --tooltip: #24292f;
+  --tooltip-text: #ffffff;
+  --warning: #9a6700;
+
+  --chrome-top: #ffffff;
+  --chrome-bottom: #eaeef2;
+  --chrome-edge: #d0d7de;
+  --chrome-text: #1f2328;
+  --btn-top: #ffffff;
+  --btn-bottom: #e6ebf1;
+  --btn-ring: #afb8c1;
+  --btn-icon: #24292f;
+  --play-top: #2da44e;
+  --play-bottom: #1a7f37;
+  --play-icon: #ffffff;
+  --gloss: rgba(255, 255, 255, 0.5);
+
+  --groove: #d0d7de;
+  --groove-fill: #0969da;
+  --thumb: #ffffff;
+  --glow: #54aeff;
+
+  --lcd: #f6f8fa;
+  --lcd-text: #0550ae;
+  --lcd-dim: #656d76;
+  --lcd-border: #d0d7de;
+
+  --eq-curve: #0969da;
+  --eq-fill: rgba(9, 105, 218, 0.12);
+  --eq-grid: #d8dee4;
+  --fader-cap: #ffffff;
+  --knob-top: #ffffff;
+  --knob-bottom: #dfe4ea;
+
+  --font: "Segoe UI", "Noto Sans", "Helvetica", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "SF Mono", "Consolas", "DejaVu Sans Mono", monospace;
+  --radius: 6px;
+}

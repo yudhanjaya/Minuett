@@ -1,0 +1,64 @@
+/* SynthWave '84, after the VS Code theme by Robb Owen. Neon, with glow. */
+:root {
+  --name: "SynthWave '84";
+  --dark: true;
+
+  --window: #262335;
+  --surface: #241b2f;
+  --surface-alt: #2a2139;
+  --panel: #171520;
+  --border: #34294f;
+  --text: #ffffff;
+  --text-muted: #848bbd;
+  --accent: #ff7edb;
+  --accent-text: #171520;
+  --selection: #463465;
+  --selection-text: #ffffff;
+  --hover: #34294f;
+  --input: #1e1a2e;
+  --button: #34294f;
+  --button-hover: #463465;
+  --button-text: #ffffff;
+  --scrollbar: #463465;
+  --scrollbar-hover: #848bbd;
+  --tooltip: #171520;
+  --tooltip-text: #36f9f6;
+  --warning: #fede5d;
+
+  --chrome-top: #3b2d5c;
+  --chrome-bottom: #171520;
+  --chrome-edge: #ff7edb;
+  --chrome-text: #ffffff;
+  --btn-top: #463465;
+  --btn-bottom: #1e1a2e;
+  --btn-ring: #ff7edb;
+  --btn-icon: #36f9f6;
+  --play-top: #ff9ee6;
+  --play-bottom: #b3208f;
+  --play-icon: #ffffff;
+  --gloss: rgba(255, 255, 255, 0.3);
+
+  --groove: #171520;
+  --groove-fill: #ff7edb;
+  --thumb: #fdfdfd;
+  --glow: #ff2fd0;
+
+  --lcd: #120f1a;
+  --lcd-text: #36f9f6;
+  --lcd-dim: #b6b1b1;
+  --lcd-border: #ff7edb;
+
+  --eq-curve: #36f9f6;
+  --eq-fill: rgba(54, 249, 246, 0.14);
+  --eq-grid: #34294f;
+  --fader-cap: #fede5d;
+  --knob-top: #463465;
+  --knob-bottom: #1e1a2e;
+
+  --font: "Inter", "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "Fira Code", "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  --radius: 2px;
+}
+#NavRail::item:selected { color: #36f9f6; border-left: 3px solid #ff7edb; }
+#PaneTitle { color: #fede5d; }

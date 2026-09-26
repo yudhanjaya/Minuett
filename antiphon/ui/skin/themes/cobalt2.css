@@ -1,0 +1,62 @@
+/* Cobalt2, after the official VS Code theme by Wes Bos. */
+:root {
+  --name: "Cobalt2";
+  --dark: true;
+
+  --window: #193549;
+  --surface: #193549;
+  --surface-alt: #1c3a50;
+  --panel: #15232d;
+  --border: #0d3a58;
+  --text: #ffffff;
+  --text-muted: #aaaaaa;
+  --accent: #ffc600;
+  --accent-text: #193549;
+  --selection: #0050a4;
+  --selection-text: #ffffff;
+  --hover: #1f4662;
+  --input: #122738;
+  --button: #0d3a58;
+  --button-hover: #1f4662;
+  --button-text: #ffffff;
+  --scrollbar: #1f4662;
+  --scrollbar-hover: #406080;
+  --tooltip: #15232d;
+  --tooltip-text: #ffc600;
+  --warning: #ff9d00;
+
+  --chrome-top: #1f4662;
+  --chrome-bottom: #122738;
+  --chrome-edge: #ffc600;
+  --chrome-text: #ffffff;
+  --btn-top: #235679;
+  --btn-bottom: #122738;
+  --btn-ring: #0a1a26;
+  --btn-icon: #ffffff;
+  --play-top: #ffdb4d;
+  --play-bottom: #e08a00;
+  --play-icon: #193549;
+  --gloss: rgba(255, 255, 255, 0.45);
+
+  --groove: #0e1f2b;
+  --groove-fill: #ffc600;
+  --thumb: #ffffff;
+  --glow: #ffc600;
+
+  --lcd: #0e1f2b;
+  --lcd-text: #9effff;
+  --lcd-dim: #0088ff;
+  --lcd-border: #0a1620;
+
+  --eq-curve: #ffc600;
+  --eq-fill: rgba(255, 198, 0, 0.16);
+  --eq-grid: #1f4662;
+  --fader-cap: #ff9d00;
+  --knob-top: #235679;
+  --knob-bottom: #122738;
+
+  --font: "Inter", "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "Operator Mono", "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  --radius: 3px;
+}

@@ -12,14 +12,16 @@ import math
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QFont, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import (
-    QComboBox, QDial, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMessageBox,
-    QPushButton, QSizePolicy, QSlider, QVBoxLayout, QWidget,
+    QComboBox, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMessageBox,
+    QPushButton, QSizePolicy, QVBoxLayout, QWidget,
 )
 
 from antiphon.core.equalizer import (
     DEFAULT_Q, FREQ_MAX, FREQ_MIN, GAIN_MAX, GAIN_MIN, ISO_FREQS, NUM_BANDS, PREAMP_MAX,
     PREAMP_MIN, Q_MAX, Q_MIN, EqState, PresetStore, log_freqs, peak_db, response_db,
 )
+from antiphon.ui.skin.manager import manager as theme_manager
+from antiphon.ui.skin.widgets import Fader, Knob
 
 DIAL_STEPS = 1000
 CURVE_DB = 15.0  # vertical range of the plot, ±
@@ -40,18 +42,10 @@ def _dial_to_log(pos: int, lo: float, hi: float) -> float:
     return math.exp(math.log(lo) + pos / DIAL_STEPS * (math.log(hi) - math.log(lo)))
 
 
-class ResettingSlider(QSlider):
-    reset = Signal()
-
-    def mouseDoubleClickEvent(self, event) -> None:
-        self.reset.emit()
-
-
-class ResettingDial(QDial):
-    reset = Signal()
-
-    def mouseDoubleClickEvent(self, event) -> None:
-        self.reset.emit()
+def _fader() -> Fader:
+    f = Fader()
+    f.setPageStep(10)
+    return f
 
 
 class ResponseCurve(QWidget):
@@ -84,11 +78,15 @@ class ResponseCurve(QWidget):
     def paintEvent(self, event) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pal = self.palette()
-        p.fillRect(self.rect(), pal.base())
+        tm = theme_manager()
+        bg = tm.color("surface")
+        p.setPen(QPen(tm.color("border"), 1))
+        p.setBrush(bg)
+        radius = tm.number("radius", 4)
+        p.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), radius, radius)
         rect = QRectF(self.rect()).adjusted(34, 8, -8, -18)
-        grid = QPen(pal.mid().color(), 1)
-        text = pal.placeholderText().color()
+        grid = QPen(tm.color("eq-grid"), 1)
+        text = tm.color("text-muted")
         small = QFont(self.font())
         small.setPointSizeF(max(7.0, small.pointSizeF() * 0.8))
         p.setFont(small)
@@ -102,7 +100,8 @@ class ResponseCurve(QWidget):
                        Qt.AlignmentFlag.AlignCenter, fmt_freq(f))
         for db in (-12, -6, 0, 6, 12):
             y = self._y(rect, db)
-            pen = QPen(pal.mid().color(), 1.6 if db == 0 else 1)
+            pen = QPen(tm.color("eq-grid").lighter(130) if db == 0 else tm.color("eq-grid"),
+                       1.6 if db == 0 else 1)
             p.setPen(pen)
             p.drawLine(QPointF(rect.left(), y), QPointF(rect.right(), y))
             p.setPen(text)
@@ -110,22 +109,23 @@ class ResponseCurve(QWidget):
                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter, f"{db:+d}")
 
         values = response_db(self.state, self._freqs)
-        path = QPainterPath()
-        for i, (f, v) in enumerate(zip(self._freqs, values)):
-            pt = QPointF(self._x(rect, f), self._y(rect, v))
-            path.moveTo(pt) if i == 0 else path.lineTo(pt)
+        points = [QPointF(self._x(rect, f), self._y(rect, v)) for f, v in zip(self._freqs, values)]
+        path = QPainterPath(points[0])
+        for pt in points[1:]:
+            path.lineTo(pt)
 
-        accent = pal.highlight().color()
-        if not self.state.enabled:
-            accent = pal.mid().color()
-        fill = QPainterPath(path)
-        fill.lineTo(rect.right(), self._y(rect, 0))
-        fill.lineTo(rect.left(), self._y(rect, 0))
-        fill.closeSubpath()
-        tint = QColor(accent)
-        tint.setAlpha(45)
-        p.fillPath(fill, tint)
+        accent = tm.color("eq-curve") if self.state.enabled else tm.color("text-muted")
+        if self.state.enabled:
+            # Shade between the curve and the 0 dB line.
+            zero = self._y(rect, 0)
+            fill = QPainterPath(QPointF(points[0].x(), zero))
+            for pt in points:
+                fill.lineTo(pt)
+            fill.lineTo(QPointF(points[-1].x(), zero))
+            fill.closeSubpath()
+            p.fillPath(fill, tm.color("eq-fill"))
         p.setPen(QPen(accent, 2.2))
+        p.setBrush(Qt.BrushStyle.NoBrush)  # stroke only; a leftover brush would fill the curve
         p.drawPath(path)
 
         # A handle per band, sitting on the curve at the band's frequency.
@@ -134,7 +134,7 @@ class ResponseCurve(QWidget):
             c = QPointF(self._x(rect, b.freq), self._y(rect, v))
             r = 5.0 if i == self.active_band else 3.5
             p.setPen(QPen(accent, 1.5))
-            p.setBrush(pal.base() if b.gain == 0 else accent)
+            p.setBrush(bg if b.gain == 0 else accent)
             p.drawEllipse(c, r, r)
         p.end()
 
@@ -148,24 +148,19 @@ class BandStrip(QWidget):
         super().__init__(parent)
         self.index = index
         self.gain_label = QLabel(alignment=Qt.AlignmentFlag.AlignCenter)
-        self.slider = ResettingSlider(Qt.Orientation.Vertical)
+        self.gain_label.setObjectName("EqValue")
+        self.slider = _fader()
         self.slider.setRange(round(GAIN_MIN * 10), round(GAIN_MAX * 10))
-        self.slider.setPageStep(10)
-        self.slider.setTickPosition(QSlider.TickPosition.TicksBothSides)
-        self.slider.setTickInterval(60)
-        self.slider.setMinimumHeight(150)
         self.slider.setToolTip("Gain (double-click to reset)")
-        self.freq = ResettingDial()
+        self.freq = Knob()
         self.freq.setRange(0, DIAL_STEPS)
         self.freq.setToolTip("Frequency (double-click to reset)")
         self.freq_label = QLabel(alignment=Qt.AlignmentFlag.AlignCenter)
-        self.q = ResettingDial()
+        self.q = Knob(size=32)
         self.q.setRange(0, DIAL_STEPS)
         self.q.setToolTip("Q, i.e. width: higher is narrower (double-click to reset)")
         self.q_label = QLabel(alignment=Qt.AlignmentFlag.AlignCenter)
-        for dial in (self.freq, self.q):
-            dial.setFixedSize(40, 40)
-            dial.setNotchesVisible(False)
+        self.q_label.setObjectName("EqValue")
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(2, 0, 2, 0)
@@ -230,6 +225,7 @@ class EqualizerView(QWidget):
         self.delete_btn = QPushButton("Delete Preset", clicked=self._delete_preset)
         reset = QPushButton("Reset", clicked=lambda: self._load_preset("Flat"))
         self.peak_label = QLabel()
+        self.peak_label.setObjectName("EqPeak")
 
         top = QHBoxLayout()
         top.addWidget(self.power)
@@ -245,12 +241,8 @@ class EqualizerView(QWidget):
         self.curve = ResponseCurve()
 
         # Preamp strip, then the ten bands.
-        self.preamp = ResettingSlider(Qt.Orientation.Vertical)
+        self.preamp = _fader()
         self.preamp.setRange(round(PREAMP_MIN * 10), round(PREAMP_MAX * 10))
-        self.preamp.setPageStep(10)
-        self.preamp.setTickPosition(QSlider.TickPosition.TicksBothSides)
-        self.preamp.setTickInterval(60)
-        self.preamp.setMinimumHeight(150)
         self.preamp.setToolTip("Preamp (double-click to reset)")
         self.preamp.valueChanged.connect(lambda _: self._on_preamp())
         self.preamp.reset.connect(lambda: self.preamp.setValue(0))
@@ -258,13 +250,22 @@ class EqualizerView(QWidget):
 
         strips = QGridLayout()
         strips.setHorizontalSpacing(4)
-        pre = QVBoxLayout()
+        # Mirror BandStrip's layout so the preamp fader lines up with the bands:
+        # value label, fader, then the same height the two knobs take.
+        pre_w = QWidget()
+        pre = QVBoxLayout(pre_w)
+        pre.setContentsMargins(2, 0, 2, 0)
+        pre.setSpacing(2)
+        self.preamp_label.setObjectName("EqValue")
         pre.addWidget(self.preamp_label)
         pre.addWidget(self.preamp, 1, Qt.AlignmentFlag.AlignHCenter)
         cap = QLabel("Preamp", alignment=Qt.AlignmentFlag.AlignCenter)
-        pre.addWidget(cap)
-        pre.addStretch(0)
-        strips.addLayout(pre, 0, 0)
+        self._preamp_foot = QWidget()
+        foot = QVBoxLayout(self._preamp_foot)
+        foot.setContentsMargins(0, 0, 0, 0)
+        foot.addWidget(cap, 0, Qt.AlignmentFlag.AlignTop)
+        pre.addWidget(self._preamp_foot)
+        strips.addWidget(pre_w, 0, 0)
         strips.setColumnMinimumWidth(1, 14)
         self.strips: list[BandStrip] = []
         for i in range(NUM_BANDS):
@@ -272,6 +273,12 @@ class EqualizerView(QWidget):
             strip.changed.connect(self._on_band)
             self.strips.append(strip)
             strips.addWidget(strip, 0, i + 2)
+
+        s0 = self.strips[0]
+        # Knobs have a fixed size; QDial's sizeHint ignores that, so use the minimum.
+        knob_area = sum(w.minimumHeight() or w.sizeHint().height()
+                        for w in (s0.freq, s0.freq_label, s0.q, s0.q_label))
+        self._preamp_foot.setFixedHeight(knob_area + 3 * s0.layout().spacing())
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(8, 4, 8, 8)

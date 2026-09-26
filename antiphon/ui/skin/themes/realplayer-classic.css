@@ -1,0 +1,63 @@
+/* RealPlayer Classic: Antiphon's default skin. Charcoal and blue chrome after
+   RealPlayer 10, with a glossy transport and a glowing position slider. */
+:root {
+  --name: "RealPlayer Classic";
+  --dark: true;
+
+  --window: #2a2d33;
+  --surface: #1f2227;
+  --surface-alt: #24282e;
+  --panel: #25292f;
+  --border: #121417;
+  --text: #d8dde5;
+  --text-muted: #8a93a0;
+  --accent: #3d8ee0;
+  --accent-text: #ffffff;
+  --selection: #1f4f82;
+  --selection-text: #ffffff;
+  --hover: #2f353d;
+  --input: #16191d;
+  --button: #353a42;
+  --button-hover: #414751;
+  --button-text: #d8dde5;
+  --scrollbar: #444b55;
+  --scrollbar-hover: #5a636f;
+  --tooltip: #10161d;
+  --tooltip-text: #cfe6ff;
+  --warning: #f0a030;
+
+  --chrome-top: #5a6372;
+  --chrome-bottom: #1b1e23;
+  --chrome-edge: #0b0d10;
+  --chrome-text: #c9d3df;
+  --btn-top: #6b7483;
+  --btn-bottom: #22262c;
+  --btn-ring: #0c0e11;
+  --btn-icon: #e6ecf3;
+  --play-top: #7cc4ff;
+  --play-bottom: #0f4f9e;
+  --play-icon: #ffffff;
+  --gloss: rgba(255, 255, 255, 0.55);
+
+  --groove: #0f1114;
+  --groove-fill: var(--accent);
+  --thumb: #d7e9ff;
+  --glow: #4aa8ff;
+
+  --lcd: #0a1622;
+  --lcd-text: #8fd8ff;
+  --lcd-dim: #4f7f9f;
+  --lcd-border: #05090e;
+
+  --eq-curve: #57b0ff;
+  --eq-fill: rgba(61, 142, 224, 0.22);
+  --eq-grid: #3a414b;
+  --fader-cap: #aab4c2;
+  --knob-top: #5d6572;
+  --knob-bottom: #262a31;
+
+  --font: "Tahoma", "Verdana", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "DejaVu Sans Mono", monospace;
+  --radius: 3px;
+}

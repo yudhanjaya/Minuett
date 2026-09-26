@@ -25,6 +25,9 @@ antiphon = "antiphon.__main__:main"
 [tool.setuptools.packages.find]
 include = ["antiphon*"]
 
+[tool.setuptools.package-data]
+"antiphon.ui.skin" = ["base.qss", "themes/*.css"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["tests"]

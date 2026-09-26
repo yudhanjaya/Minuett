@@ -6,12 +6,12 @@ transport widgets) is a dedicated later pass, per docs/PLAN.md.
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QSettings, QThread, QTimer, Qt, Signal
-from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtCore import QObject, QSettings, QThread, QTimer, Qt, QUrl, Signal
+from PySide6.QtGui import QAction, QActionGroup, QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QFileDialog, QHBoxLayout, QLabel, QLineEdit, QListWidget, QListWidgetItem,
     QMainWindow, QMessageBox, QSlider, QSplitter, QStackedWidget, QTableView,
-    QToolButton, QVBoxLayout, QWidget, QAbstractItemView, QHeaderView,
+    QVBoxLayout, QWidget, QAbstractItemView, QHeaderView,
 )
 
 from antiphon.core.library.db import LibraryDB, Track
@@ -24,6 +24,8 @@ from . import ytdlp_update
 from .dialogs.preferences import PreferencesDialog, load_preferences
 from .dialogs.tag_editor import TagEditorDialog
 from .download_manager import DownloadManager, OpResult
+from .skin.manager import manager as theme_manager
+from .skin.widgets import GlowSlider, StatusDisplay, TransportButton
 from .views.browse_tree import BrowseTree
 from .views.downloads_view import DownloadsView
 from .views.equalizer_view import EqualizerView, debounce
@@ -71,48 +73,70 @@ class LibraryTable(QTableView):
 
 
 class TransportBar(QWidget):
+    """The top strip, after RealPlayer 10: round glossy transport buttons with
+    an oversized Play, the display panel over a glowing position slider, and
+    volume at the right. This strip alone is what toolbar mode shows."""
+
     def __init__(self, player: Player, parent=None) -> None:
         super().__init__(parent)
+        self.setObjectName("Transport")
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         self.player = player
         self._seeking = False
 
-        def btn(text: str, tip: str, slot) -> QToolButton:
-            b = QToolButton(text=text, toolTip=tip)
+        def btn(kind: str, tip: str, slot, diameter=30, primary=False) -> TransportButton:
+            b = TransportButton(kind, diameter, primary)
+            b.setToolTip(tip)
             b.clicked.connect(slot)
             return b
 
-        self.prev_btn = btn("⏮", "Previous", player.previous)
-        self.play_btn = btn("▶", "Play/Pause", player.toggle)
-        self.stop_btn = btn("⏹", "Stop", player.stop)
-        self.next_btn = btn("⏭", "Next", player.next)
-        self.play_btn.setMinimumSize(44, 44)
+        self.prev_btn = btn("prev", "Previous", player.previous)
+        self.play_btn = btn("play", "Play/Pause (Space)", player.toggle, diameter=50, primary=True)
+        self.stop_btn = btn("stop", "Stop", player.stop)
+        self.next_btn = btn("next", "Next", player.next)
 
-        self.position = QSlider(Qt.Orientation.Horizontal)
+        self.display = StatusDisplay()
+        self.display.set_text("Antiphon", "Stopped")
+        self.position = GlowSlider()
         self.position.setRange(0, 0)
+        self.position.setToolTip("Position")
         self.position.sliderPressed.connect(lambda: setattr(self, "_seeking", True))
         self.position.sliderReleased.connect(self._seek)
-        self.time_label = QLabel("0:00 / 0:00")
 
-        self.volume = QSlider(Qt.Orientation.Horizontal, maximumWidth=100)
+        self.volume = GlowSlider(thumb=6)
         self.volume.setRange(0, 100)
+        self.volume.setFixedWidth(110)
         self.volume.setValue(int(player.volume * 100))
+        self.volume.setToolTip("Volume")
         self.volume.valueChanged.connect(lambda v: setattr(player, "volume", v / 100))
+        self.volume.reset.connect(lambda: self.volume.setValue(100))
 
-        self.status = QLabel("Stopped")
-        self.status.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        buttons = QHBoxLayout()
+        buttons.setSpacing(2)
+        buttons.addWidget(self.prev_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        buttons.addWidget(self.play_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        buttons.addWidget(self.stop_btn, 0, Qt.AlignmentFlag.AlignVCenter)
+        buttons.addWidget(self.next_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
-        top = QHBoxLayout()
-        for w in (self.prev_btn, self.play_btn, self.stop_btn, self.next_btn):
-            top.addWidget(w)
-        top.addWidget(self.position, 1)
-        top.addWidget(self.time_label)
-        top.addWidget(QLabel("Vol"))
-        top.addWidget(self.volume)
+        center = QVBoxLayout()
+        center.setSpacing(3)
+        center.addWidget(self.display)
+        center.addWidget(self.position)
 
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.addLayout(top)
-        layout.addWidget(self.status)
+        vol = QVBoxLayout()
+        vol.addStretch(1)
+        vol_label = QLabel("VOLUME")
+        vol_label.setObjectName("VolumeLabel")
+        vol.addWidget(vol_label, 0, Qt.AlignmentFlag.AlignHCenter)
+        vol.addWidget(self.volume)
+        vol.addStretch(1)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 8, 12, 8)
+        layout.setSpacing(12)
+        layout.addLayout(buttons)
+        layout.addLayout(center, 1)
+        layout.addLayout(vol)
 
         player.state_changed.connect(self._on_state)
 
@@ -121,10 +145,10 @@ class TransportBar(QWidget):
         self.player.seek_ns(self.position.value() * NS_PER_MS)
 
     def _on_state(self, state: State) -> None:
-        self.play_btn.setText("⏸" if state is State.PLAYING else "▶")
+        self.play_btn.set_kind("pause" if state is State.PLAYING else "play")
         if state is State.STOPPED:
             self.position.setRange(0, 0)
-            self.time_label.setText("0:00 / 0:00")
+            self.display.set_time("", "")
 
     def tick(self) -> None:
         if self.player.state is State.STOPPED:
@@ -134,9 +158,10 @@ class TransportBar(QWidget):
             self.position.setMaximum(dur // NS_PER_MS)
         if pos is not None and not self._seeking:
             self.position.setValue(pos // NS_PER_MS)
-        self.time_label.setText(
-            f"{format_ms((pos or 0) // NS_PER_MS) or '0:00'} / "
-            f"{format_ms((dur or 0) // NS_PER_MS) or '0:00'}")
+        shown = self.position.sliderPosition() * NS_PER_MS if self._seeking else (pos or 0)
+        self.display.set_time(
+            f"{format_ms(shown // NS_PER_MS) or '0:00'} / {format_ms((dur or 0) // NS_PER_MS) or '0:00'}",
+            self.player.state.value)
 
 
 class MainWindow(QMainWindow):
@@ -161,6 +186,7 @@ class MainWindow(QMainWindow):
 
         # --- nav rail ---
         self.nav = QListWidget()
+        self.nav.setObjectName("NavRail")
         self.nav.addItems(NAV_ITEMS)
         self.nav.setMaximumWidth(170)
 
@@ -200,9 +226,14 @@ class MainWindow(QMainWindow):
         self.queue_list.itemDoubleClicked.connect(
             lambda it: self.player.play_index(self.queue_list.row(it)))
         queue_pane = QWidget()
+        queue_pane.setObjectName("QueuePane")
+        queue_pane.setAttribute(Qt.WidgetAttribute.WA_StyledBackground)
         ql = QVBoxLayout(queue_pane)
         ql.setContentsMargins(0, 0, 0, 0)
-        ql.addWidget(QLabel("Now Playing"))
+        ql.setSpacing(0)
+        queue_title = QLabel("Now Playing")
+        queue_title.setObjectName("PaneTitle")
+        ql.addWidget(queue_title)
         ql.addWidget(self.queue_list)
         self.queue_pane = queue_pane
 
@@ -238,6 +269,7 @@ class MainWindow(QMainWindow):
         self._scan_thread: QThread | None = None
         if self.library_model.rowCount() == 0 and not self.folders():
             self.statusBar().showMessage("Library is empty — use File ▸ Add Music Folder…")
+            self.library_model.rowsInserted.connect(self._clear_empty_hint)
 
     # --- construction helpers -------------------------------------------
 
@@ -336,6 +368,10 @@ class MainWindow(QMainWindow):
                                shortcut=QKeySequence("Ctrl+T"), toggled=self.set_compact)
         view_menu.addAction(self.toggle_queue)
         view_menu.addAction(self.compact)
+        view_menu.addSeparator()
+        self.theme_menu = view_menu.addMenu("&Theme")
+        self._build_theme_menu()
+        theme_manager().themes_reloaded.connect(self._build_theme_menu)
 
         play_menu = self.menuBar().addMenu("&Play")
         for text, key, slot in (
@@ -479,18 +515,25 @@ class MainWindow(QMainWindow):
             self.queue_list.addItem(QListWidgetItem(label))
         self._highlight_current()
 
+    def _clear_empty_hint(self, *_) -> None:
+        if self.statusBar().currentMessage().startswith("Library is empty"):
+            self.statusBar().clearMessage()
+
     def _highlight_current(self) -> None:
         idx = self.player.index
+        accent = theme_manager().color("accent")
         for i in range(self.queue_list.count()):
-            f = self.queue_list.item(i).font()
+            item = self.queue_list.item(i)
+            f = item.font()
             f.setBold(i == idx)
-            self.queue_list.item(i).setFont(f)
+            item.setFont(f)
+            item.setForeground(accent if i == idx else self.queue_list.palette().text())
 
     def _on_track_changed(self, index: int, item: QueueItem | None) -> None:
         self._bitrate = None
         self._highlight_current()
         if item is None:
-            self.transport.status.setText("Stopped")
+            self.transport.display.set_text("Antiphon", "Stopped")
             self.setWindowTitle("Antiphon")
             return
         t = self._track_cache.get(item.track_id) if item.track_id else None
@@ -507,15 +550,62 @@ class MainWindow(QMainWindow):
 
     def _track_status(self, t: Track | None, item: QueueItem) -> None:
         title = (t.title if t else None) or item.path.rsplit("/", 1)[-1]
-        parts = [f"{t.artist} – {title}" if t and t.artist else title]
+        headline = f"{t.artist} – {title}" if t and t.artist else title
+        parts = []
         if t and t.album:
             parts.append(t.album)
+        if t and t.source_playlist:
+            parts.append(f"from {t.source_playlist}")
         bitrate = self._bitrate or (t.bitrate if t else None)
         codec = t.codec.upper() if t and t.codec else ""
         if bitrate or codec:
             parts.append(" ".join(x for x in (codec, f"{round(bitrate / 1000)} kbps" if bitrate else "") if x))
-        self.transport.status.setText("   •   ".join(parts))
+        self.transport.display.set_text(headline, "  ·  ".join(parts))
         self.setWindowTitle(f"{title} — Antiphon")
+
+    # --- themes -------------------------------------------------------------
+
+    def _build_theme_menu(self) -> None:
+        tm = theme_manager()
+        menu = self.theme_menu
+        menu.clear()
+        group = QActionGroup(menu)
+        current = tm.current.id if tm.current else None
+        last_builtin = None
+        for theme in tm.sorted_themes():
+            if last_builtin is True and not theme.builtin:
+                menu.addSeparator()
+            last_builtin = theme.builtin
+            act = QAction(theme.name, menu, checkable=True, checked=theme.id == current)
+            act.setToolTip(theme.author_note)
+            act.triggered.connect(lambda _=False, tid=theme.id: self.set_theme(tid))
+            group.addAction(act)
+            menu.addAction(act)
+        menu.addSeparator()
+        menu.addAction(QAction("Customize Current Theme…", menu, triggered=self._customize_theme))
+        menu.addAction(QAction("Open Themes Folder", menu, triggered=self._open_theme_folder))
+        menu.addAction(QAction("Reload Themes", menu, triggered=tm.reload))
+
+    def set_theme(self, theme_id: str) -> None:
+        theme = theme_manager().apply(theme_id)
+        self.settings.setValue("ui/theme", theme.id)
+        self._build_theme_menu()
+        self._highlight_current()
+
+    def _open_theme_folder(self) -> None:
+        folder = theme_manager().user_dir
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
+    def _customize_theme(self) -> None:
+        tm = theme_manager()
+        path = tm.copy_for_editing(tm.current.id)
+        self.set_theme(path.stem)
+        QMessageBox.information(
+            self, "Customize Theme",
+            f"Saved an editable copy as:\n{path}\n\nEdit the CSS variables in any text "
+            "editor; Antiphon reloads the theme each time you save.")
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
 
     # --- compact toolbar mode --------------------------------------------
 

@@ -1,0 +1,63 @@
+/* Dracula, after the official Dracula theme for VS Code (draculatheme.com). */
+:root {
+  --name: "Dracula";
+  --dark: true;
+
+  --window: #282a36;
+  --surface: #282a36;
+  --surface-alt: #2d2f3d;
+  --panel: #21222c;
+  --border: #191a21;
+  --text: #f8f8f2;
+  --text-muted: #6272a4;
+  --accent: #bd93f9;
+  --accent-text: #191a21;
+  --selection: #44475a;
+  --selection-text: #f8f8f2;
+  --hover: #343746;
+  --input: #21222c;
+  --button: #343746;
+  --button-hover: #44475a;
+  --button-text: #f8f8f2;
+  --scrollbar: #44475a;
+  --scrollbar-hover: #6272a4;
+  --tooltip: #191a21;
+  --tooltip-text: #f8f8f2;
+  --warning: #ffb86c;
+
+  --chrome-top: #343746;
+  --chrome-bottom: #1e1f29;
+  --chrome-edge: #191a21;
+  --chrome-text: #f8f8f2;
+  --btn-top: #44475a;
+  --btn-bottom: #282a36;
+  --btn-ring: #14151b;
+  --btn-icon: #f8f8f2;
+  --play-top: #ff92d0;
+  --play-bottom: #c0439a;
+  --play-icon: #ffffff;
+  --gloss: rgba(255, 255, 255, 0.35);
+
+  --groove: #191a21;
+  --groove-fill: #ff79c6;
+  --thumb: #f8f8f2;
+  --glow: #ff79c6;
+
+  --lcd: #1b1c24;
+  --lcd-text: #50fa7b;
+  --lcd-dim: #6272a4;
+  --lcd-border: #111218;
+
+  --eq-curve: #8be9fd;
+  --eq-fill: rgba(139, 233, 253, 0.16);
+  --eq-grid: #3a3c4e;
+  --fader-cap: #bd93f9;
+  --knob-top: #44475a;
+  --knob-bottom: #282a36;
+
+  --font: "Inter", "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "Fira Code", "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  --radius: 6px;
+}
+#NavRail::item:selected { color: #ff79c6; }

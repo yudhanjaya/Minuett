@@ -1,0 +1,62 @@
+/* Nord, after the VS Code theme by Arctic Ice Studio. Calm, low-contrast frost. */
+:root {
+  --name: "Nord";
+  --dark: true;
+
+  --window: #2e3440;
+  --surface: #2e3440;
+  --surface-alt: #323846;
+  --panel: #2b303b;
+  --border: #3b4252;
+  --text: #d8dee9;
+  --text-muted: #7b88a1;
+  --accent: #88c0d0;
+  --accent-text: #2e3440;
+  --selection: #434c5e;
+  --selection-text: #eceff4;
+  --hover: #3b4252;
+  --input: #3b4252;
+  --button: #3b4252;
+  --button-hover: #434c5e;
+  --button-text: #eceff4;
+  --scrollbar: #434c5e;
+  --scrollbar-hover: #4c566a;
+  --tooltip: #3b4252;
+  --tooltip-text: #eceff4;
+  --warning: #ebcb8b;
+
+  --chrome-top: #3b4252;
+  --chrome-bottom: #2e3440;
+  --chrome-edge: #242933;
+  --chrome-text: #eceff4;
+  --btn-top: #4c566a;
+  --btn-bottom: #3b4252;
+  --btn-ring: #242933;
+  --btn-icon: #eceff4;
+  --play-top: #a3d4e0;
+  --play-bottom: #5e81ac;
+  --play-icon: #2e3440;
+  --gloss: rgba(255, 255, 255, 0.22);
+
+  --groove: #242933;
+  --groove-fill: #88c0d0;
+  --thumb: #eceff4;
+  --glow: #8fbcbb;
+
+  --lcd: #242933;
+  --lcd-text: #8fbcbb;
+  --lcd-dim: #616e88;
+  --lcd-border: #1f232c;
+
+  --eq-curve: #81a1c1;
+  --eq-fill: rgba(129, 161, 193, 0.2);
+  --eq-grid: #3b4252;
+  --fader-cap: #d8dee9;
+  --knob-top: #4c566a;
+  --knob-bottom: #3b4252;
+
+  --font: "Inter", "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  --radius: 5px;
+}

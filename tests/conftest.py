@@ -1,6 +1,15 @@
+import os
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
+
+# Never touch the real ~/.config or ~/.local/share from tests (QSettings,
+# themes, EQ state and the library DB all live under these).
+_SANDBOX = Path(tempfile.mkdtemp(prefix="antiphon-tests-"))
+os.environ["XDG_CONFIG_HOME"] = str(_SANDBOX / "config")
+os.environ["XDG_DATA_HOME"] = str(_SANDBOX / "data")
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 import pytest
 

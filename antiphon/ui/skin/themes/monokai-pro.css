@@ -1,0 +1,62 @@
+/* Monokai Pro, after the VS Code theme by monokai (Wimer Hazenberg). */
+:root {
+  --name: "Monokai Pro";
+  --dark: true;
+
+  --window: #2d2a2e;
+  --surface: #2d2a2e;
+  --surface-alt: #322f33;
+  --panel: #221f22;
+  --border: #19181a;
+  --text: #fcfcfa;
+  --text-muted: #939293;
+  --accent: #ffd866;
+  --accent-text: #2d2a2e;
+  --selection: #5b595c;
+  --selection-text: #fcfcfa;
+  --hover: #403e41;
+  --input: #19181a;
+  --button: #403e41;
+  --button-hover: #5b595c;
+  --button-text: #fcfcfa;
+  --scrollbar: #5b595c;
+  --scrollbar-hover: #727072;
+  --tooltip: #19181a;
+  --tooltip-text: #fcfcfa;
+  --warning: #fc9867;
+
+  --chrome-top: #403e41;
+  --chrome-bottom: #221f22;
+  --chrome-edge: #19181a;
+  --chrome-text: #fcfcfa;
+  --btn-top: #5b595c;
+  --btn-bottom: #2d2a2e;
+  --btn-ring: #121113;
+  --btn-icon: #fcfcfa;
+  --play-top: #ffe699;
+  --play-bottom: #d9a92a;
+  --play-icon: #2d2a2e;
+  --gloss: rgba(255, 255, 255, 0.4);
+
+  --groove: #19181a;
+  --groove-fill: #ffd866;
+  --thumb: #fcfcfa;
+  --glow: #ff6188;
+
+  --lcd: #19181a;
+  --lcd-text: #a9dc76;
+  --lcd-dim: #727072;
+  --lcd-border: #0f0e10;
+
+  --eq-curve: #78dce8;
+  --eq-fill: rgba(120, 220, 232, 0.16);
+  --eq-grid: #403e41;
+  --fader-cap: #fc9867;
+  --knob-top: #5b595c;
+  --knob-bottom: #2d2a2e;
+
+  --font: "Inter", "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "Operator Mono", "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  --radius: 3px;
+}

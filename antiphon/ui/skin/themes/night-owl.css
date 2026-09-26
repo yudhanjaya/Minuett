@@ -1,0 +1,62 @@
+/* Night Owl, after the VS Code theme by Sarah Drasner. */
+:root {
+  --name: "Night Owl";
+  --dark: true;
+
+  --window: #011627;
+  --surface: #011627;
+  --surface-alt: #021b30;
+  --panel: #011221;
+  --border: #122d42;
+  --text: #d6deeb;
+  --text-muted: #5f7e97;
+  --accent: #7fdbca;
+  --accent-text: #011627;
+  --selection: #1d3b53;
+  --selection-text: #ffffff;
+  --hover: #0b2942;
+  --input: #0b253a;
+  --button: #0b2942;
+  --button-hover: #1d3b53;
+  --button-text: #d6deeb;
+  --scrollbar: #1d3b53;
+  --scrollbar-hover: #5f7e97;
+  --tooltip: #0b2942;
+  --tooltip-text: #d6deeb;
+  --warning: #f78c6c;
+
+  --chrome-top: #0b2942;
+  --chrome-bottom: #010e1a;
+  --chrome-edge: #122d42;
+  --chrome-text: #d6deeb;
+  --btn-top: #1d3b53;
+  --btn-bottom: #06192b;
+  --btn-ring: #010c16;
+  --btn-icon: #d6deeb;
+  --play-top: #a6f0e2;
+  --play-bottom: #21a78f;
+  --play-icon: #011627;
+  --gloss: rgba(255, 255, 255, 0.3);
+
+  --groove: #010e1a;
+  --groove-fill: #82aaff;
+  --thumb: #d6deeb;
+  --glow: #7fdbca;
+
+  --lcd: #010e1a;
+  --lcd-text: #addb67;
+  --lcd-dim: #5f7e97;
+  --lcd-border: #122d42;
+
+  --eq-curve: #c792ea;
+  --eq-fill: rgba(199, 146, 234, 0.18);
+  --eq-grid: #122d42;
+  --fader-cap: #82aaff;
+  --knob-top: #1d3b53;
+  --knob-bottom: #06192b;
+
+  --font: "Inter", "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  --radius: 4px;
+}

@@ -1,0 +1,62 @@
+/* Catppuccin Latte, after the Catppuccin theme for VS Code. Soft pastel light. */
+:root {
+  --name: "Catppuccin Latte";
+  --dark: false;
+
+  --window: #eff1f5;
+  --surface: #eff1f5;
+  --surface-alt: #e9ecf2;
+  --panel: #e6e9ef;
+  --border: #ccd0da;
+  --text: #4c4f69;
+  --text-muted: #8c8fa1;
+  --accent: #8839ef;
+  --accent-text: #eff1f5;
+  --selection: #d6cdf6;
+  --selection-text: #4c4f69;
+  --hover: #dce0e8;
+  --input: #ffffff;
+  --button: #e6e9ef;
+  --button-hover: #dce0e8;
+  --button-text: #4c4f69;
+  --scrollbar: #bcc0cc;
+  --scrollbar-hover: #9ca0b0;
+  --tooltip: #4c4f69;
+  --tooltip-text: #eff1f5;
+  --warning: #df8e1d;
+
+  --chrome-top: #f5f6f9;
+  --chrome-bottom: #dce0e8;
+  --chrome-edge: #ccd0da;
+  --chrome-text: #4c4f69;
+  --btn-top: #ffffff;
+  --btn-bottom: #dce0e8;
+  --btn-ring: #bcc0cc;
+  --btn-icon: #5c5f77;
+  --play-top: #b98bf7;
+  --play-bottom: #7287fd;
+  --play-icon: #ffffff;
+  --gloss: rgba(255, 255, 255, 0.6);
+
+  --groove: #ccd0da;
+  --groove-fill: #ea76cb;
+  --thumb: #ffffff;
+  --glow: #ea76cb;
+
+  --lcd: #e6e9ef;
+  --lcd-text: #1e66f5;
+  --lcd-dim: #8c8fa1;
+  --lcd-border: #ccd0da;
+
+  --eq-curve: #179299;
+  --eq-fill: rgba(23, 146, 153, 0.14);
+  --eq-grid: #d5d9e2;
+  --fader-cap: #ffffff;
+  --knob-top: #ffffff;
+  --knob-bottom: #dce0e8;
+
+  --font: "Inter", "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  --radius: 8px;
+}

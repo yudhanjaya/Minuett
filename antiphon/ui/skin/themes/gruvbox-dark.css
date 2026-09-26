@@ -1,0 +1,62 @@
+/* Gruvbox Dark, after the VS Code theme by jdinhlife (morhetz's gruvbox). */
+:root {
+  --name: "Gruvbox Dark";
+  --dark: true;
+
+  --window: #282828;
+  --surface: #282828;
+  --surface-alt: #2c2c2c;
+  --panel: #1d2021;
+  --border: #3c3836;
+  --text: #ebdbb2;
+  --text-muted: #928374;
+  --accent: #fe8019;
+  --accent-text: #1d2021;
+  --selection: #504945;
+  --selection-text: #fbf1c7;
+  --hover: #3c3836;
+  --input: #1d2021;
+  --button: #3c3836;
+  --button-hover: #504945;
+  --button-text: #ebdbb2;
+  --scrollbar: #504945;
+  --scrollbar-hover: #665c54;
+  --tooltip: #1d2021;
+  --tooltip-text: #fabd2f;
+  --warning: #fabd2f;
+
+  --chrome-top: #3c3836;
+  --chrome-bottom: #1d2021;
+  --chrome-edge: #141617;
+  --chrome-text: #ebdbb2;
+  --btn-top: #504945;
+  --btn-bottom: #282828;
+  --btn-ring: #141617;
+  --btn-icon: #fbf1c7;
+  --play-top: #fea55e;
+  --play-bottom: #d65d0e;
+  --play-icon: #1d2021;
+  --gloss: rgba(255, 245, 220, 0.3);
+
+  --groove: #1d2021;
+  --groove-fill: #fe8019;
+  --thumb: #fbf1c7;
+  --glow: #fabd2f;
+
+  --lcd: #1d2021;
+  --lcd-text: #b8bb26;
+  --lcd-dim: #928374;
+  --lcd-border: #141617;
+
+  --eq-curve: #8ec07c;
+  --eq-fill: rgba(142, 192, 124, 0.18);
+  --eq-grid: #3c3836;
+  --fader-cap: #d5c4a1;
+  --knob-top: #504945;
+  --knob-bottom: #282828;
+
+  --font: "Inter", "Noto Sans", "DejaVu Sans", sans-serif;
+  --font-size: 13px;
+  --lcd-font: "Iosevka", "JetBrains Mono", "DejaVu Sans Mono", monospace;
+  --radius: 2px;
+}

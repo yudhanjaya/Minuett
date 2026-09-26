@@ -1,142 +1,57 @@
 # Minuett
 
-<!-- Introduction and screenshots go here. -->
+If Winamp was my first real introduction to the idea of a playlist, then Realplayer 10 (in 2005) was my introduction to the jukebox-style "library" of music sorted by name and artis and nicely catalogued, instead of being in a mess of folders on my drive.
 
-A music player for Linux in the spirit of RealPlayer 10 and Winamp: a glossy
-transport strip, a library you browse by playlist, a parametric equalizer, and
-a spectrum analyzer, with playlists pulled in from YouTube, YouTube Music,
-Spotify and Pandora.
+Minuett is a return to those times, in spirit. It is a library-first music player for Linux that is inspired by Realplayer 10 and Winamp. It has top bar with a spectrum analyzer, a 10-band parametric equalizer.
+
+And because this is not 2004, it allows you to import playlists pulled in from YouTube, YouTube Music, Spotify and Pandora. When you import a playlist, Minuett will download the tracks, covert them to .opus (which is a free and open file format) and populate your library automatically. You can also import folders as playlists. 
+
+Minuett is built for my own needs. I wanted a handy way of playing music as I write in a way that didn't always depend on an Internet connection. I only described the design and the functions; the actual work was done by Claude 5.5 Opus. 
+
+We got a little bit carried away adding a few features from friends ( Spotify, for instance, neither of which I use), but I've kept it as clean and simple as possible. 
+
+
+## A note on downloading
+
+The DMCA prohibits downloading content you don't have the rights to. I personally use it for royalty free or creative commons playlists of classical music. Use it for content you have the right to keep. 
+
 
 ## Features
 
-**Playback**
-- Gapless playback of Opus, AAC/M4A, MP3, FLAC, Ogg Vorbis and WAV
-  (GStreamer).
-- Transport strip with an LCD-style display, a glowing position slider, and a
-  Winamp-style spectrum analyzer that follows what you hear, after the EQ.
-- Toolbar mode shrinks the window to just the transport strip (Ctrl+T; Esc
-  returns).
-- Up Next queue in the right sidebar; a Now Playing view with cover art.
+**Playback & Audio Engine**
 
-**Library**
-- SQLite library with an incremental folder scanner (unchanged files are
-  skipped on rescans).
-- Browse by Playlist, Artist/Album, Album Artist, Album, Genre, Year, Date
-  Added or Source; live search across title, artist, album, genre and
-  playlist.
-- Tag editing: double-click a cell (or F2) to edit one field; select several
-  songs and press Ctrl+E for the batch editor. Fields that differ show
-  "(multiple values)" and are only written if you change them. Cover art can
-  be viewed, replaced and removed. Files are written first; the library only
-  updates when the write succeeds.
-- Double-click (or Enter) plays a song, and pauses or resumes it if it's the
-  one playing. Titles also appear as leaves in the browse tree.
-- Right-click a song for Play/Pause, Edit Tags, Add to Playlist (including a
-  new playlist), Remove from Playlist and Delete (from the library, optionally
-  moving the file to the Trash).
-- **Import a folder as a playlist** (File ▸ Import Folder as Playlist…, or
-  Playlists ▸ Import Folder): every audio file under it, in natural order,
-  as a playlist named after the folder. Rescan picks up added and removed files.
-- Your changes survive updates: songs you add to an imported playlist stay
-  (after the source's own songs), and songs you remove or delete aren't
-  downloaded again (Restore brings one back). The playlist on YouTube or
-  Spotify itself isn't changed.
-- Genre tags in titles ("Song [lofi hip hop]") move into the genre field
-  (Edit ▸ Move Genre Tags Out of Titles… tidies older downloads).
+* **Gapless Playback:** Full support for Opus, FLAC, AAC/M4A, MP3, Ogg Vorbis, and WAV via GStreamer.
+* **Pro-Grade Equalizer:** 10-band parametric EQ featuring pre-amps, custom presets, and a mathematically precise live response curve.
+* **Nostalgic Visuals:** Features a Winamp-style post-EQ spectrum analyzer and glowing transport sliders.
+* **Toolbar Mode:** Instantly shrink the player to a minimal transport strip with a hotkey (`Ctrl+T`).
 
-**Playlists from other services**
-- **YouTube / YouTube Music:** paste a playlist link. The whole list is shown
-  before anything downloads, then songs download one at a time with per-song
-  progress, Cancel and Retry Failed.
-- **Spotify:** paste a playlist or album link (the public page lists up to 100
-  songs), or connect your account to import your own playlists in full.
-- **Pandora, Apple Music and others:** import a CSV/TXT export from
-  [Exportify](https://exportify.app), TuneMyMusic or Soundiiz.
-- Spotify, Pandora and file imports are matched on YouTube Music by title,
-  artist and length. Their own audio is DRM-protected and never downloaded.
-  Weak matches are reported as "not found" rather than guessed.
-- **Update each playlist on its own:** Check shows what's new, Update
-  downloads only songs added since. There is deliberately no "update all".
-  Songs removed upstream leave the playlist but stay in your library; a song
-  in several playlists is downloaded once; live streams are skipped.
-- Every song records its source (YouTube, YouTube Music, Spotify, Pandora…)
-  and its link there.
+**Smart Library Management**
 
-**Audio quality**
-- Opus by default. YouTube's own Opus streams are copied untouched; anything
-  else is converted once at 256 kbps. "Original" (no conversion) and MP3 V0
-  are options in Preferences.
-- Optional YouTube Music sign-in: with a Premium account, downloads use
-  Premium's higher-bitrate streams.
+* **Fast & Lightweight:** Powered by SQLite with incremental folder scanning (skips unchanged files for rapid rescans).
+* **Advanced Tag Editing:** Built-in batch editor and cover-art manager. Files are written safely before the library updates to prevent corruption.
+* **Auto-Tidying:** Automatically extracts genre tags from cluttered titles (e.g., moves "[lofi hip hop]" to the genre field).
+* **Deep Browsing:** Live search across all metadata, or browse by standard tags, Date Added, or Source.
 
-**Equalizer**
-- 10-band parametric EQ: gain (±12 dB), frequency and Q per band, preamp,
-  on/off, presets (Flat, Rock, Vocal, Bass Boost, Treble Cut, plus your own).
-- Live response curve computed from GStreamer's own filter design, and tested
-  against the element's measured output (within 0.05 dB).
+**Cloud Import & Sync**
 
-**Themes**
-- Eleven built in: RealPlayer Classic (default), One Dark Pro, Dracula,
-  Monokai Pro, Night Owl, SynthWave '84, Cobalt2, Nord, Gruvbox Dark,
-  GitHub Light and Catppuccin Latte.
-- Themes are CSS files of variables that drive colours, spacing, sizes and the
-  type scale. Customize one from View ▸ Theme; changes reload as you save. All
-  built-in themes meet WCAG AA text contrast. See [docs/THEMES.md](docs/THEMES.md).
+* **Bring Your Playlists:** Paste a link from YouTube, YT Music, or Spotify to import the whole list. 
+* **Smart Downloading:** Downloads tracks natively in Opus (bit-perfect from YouTube) or MP3 V0. Supports YouTube Premium sign-in for high-bitrate streams.
+* **Non-Destructive Updates:** Check playlists individually for updates. It only downloads new additions, never overwrites your local edits, and won't delete songs you want to keep if they vanish upstream.
+* **Live Folders:** Import a local folder as a playlist; added or removed files sync automatically on rescan.
 
-## Installing
+**Theming & Customization**
 
-Download the Flatpak bundle or the AppImage from the
-[Releases](../../releases) page.
+* **11 Built-In Themes:** Includes RealPlayer Classic (default), Dracula, Nord, Monokai Pro, Catppuccin Latte, and more. All default themes meet WCAG AA text contrast standards.
+* **Live CSS Reloading:** Tweak colors, typography, and spacing by editing a simple CSS file of variables—changes apply instantly as you save.
 
-### Flatpak
-
-Needs the Flathub remote (for the GNOME 50 runtime):
-
-```bash
-flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
-```
-
-```bash
-flatpak install --user Minuett-0.1.0-x86_64.flatpak
-```
-
-```bash
-flatpak run io.github.yudhanjaya.Minuett
-```
-
-The Flatpak can read and write `~/Music` (downloads go to
-`~/Music/Minuett/<playlist>/`). To use music stored elsewhere:
-
-```bash
-flatpak override --user --filesystem=/path/to/music io.github.yudhanjaya.Minuett
-```
-
-### AppImage
-
-Bundles Python, GStreamer, ffmpeg and Deno. Needs glibc 2.39 or newer
-(Ubuntu 24.04, Fedora 40, Debian 13, or later).
-
-```bash
-chmod +x Minuett-0.1.0-x86_64.AppImage
-```
-
-```bash
-./Minuett-0.1.0-x86_64.AppImage
-```
-
-### Checking an install
-
-Both packages can test themselves: every audio format is decoded through the
-EQ, and yt-dlp's access to ffmpeg and a JavaScript runtime is confirmed.
-
-```bash
-flatpak run io.github.yudhanjaya.Minuett --self-test
-```
-
-```bash
-./Minuett-0.1.0-x86_64.AppImage --self-test
-```
-
+**Privacy and local-first**
+- No telemetry, no accounts of its own, no analytics.
+- Minuett only goes online when you ask it to: to read a playlist you pasted,
+  to search YouTube Music for Spotify/Pandora songs, to download, to sign in,
+  or to check PyPI for a yt-dlp update (Help menu).
+- Browser sign-ins are read locally and sent only to YouTube, the same way
+  your browser sends them. Spotify tokens go only to Spotify.
+  
 ## Using it
 
 - **Add music:** File ▸ Import Folder as Playlist… (Ctrl+Shift+I), File ▸
@@ -185,31 +100,53 @@ without them.
 Sign-in details are kept in `accounts.json` (see below), readable only by
 you. Sign out from the same dialog to delete them.
 
-## Your data
 
-| What | Native / AppImage | Flatpak |
-|---|---|---|
-| Downloads | `~/Music/Minuett/<playlist>/` (changeable in Preferences) | same |
-| Library database | `~/.local/share/minuett/library.db` | `~/.var/app/io.github.yudhanjaya.Minuett/data/minuett/` |
-| Settings, EQ, sign-ins, custom themes | `~/.config/minuett/` | `~/.var/app/io.github.yudhanjaya.Minuett/config/minuett/` |
+## Installing
 
-The library database only records where your files are, plus the playlists
-you imported. Deleting it never touches your music; Minuett rebuilds it on
-the next scan (imported playlists would need importing again).
+Download the Flatpak bundle or the AppImage from the
+[Releases](../../releases) page. Now presumably you know how to use Flatpak or AppImage - I personally use bauh and Gear Lever - but, just in case:
 
-### Privacy
+### Flatpak
 
-- No telemetry, no accounts of its own, no analytics.
-- Minuett only goes online when you ask it to: to read a playlist you pasted,
-  to search YouTube Music for Spotify/Pandora songs, to download, to sign in,
-  or to check PyPI for a yt-dlp update (Help menu).
-- Browser sign-ins are read locally and sent only to YouTube, the same way
-  your browser sends them. Spotify tokens go only to Spotify.
+Needs the Flathub remote (for the GNOME 50 runtime):
+
+```bash
+flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+```
+
+```bash
+flatpak install --user Minuett-0.1.0-x86_64.flatpak
+```
+
+```bash
+flatpak run io.github.yudhanjaya.Minuett
+```
+
+The Flatpak can read and write `~/Music` (downloads go to
+`~/Music/Minuett/<playlist>/`). To use music stored elsewhere:
+
+```bash
+flatpak override --user --filesystem=/path/to/music io.github.yudhanjaya.Minuett
+```
+
+### AppImage
+
+Bundles Python, GStreamer, ffmpeg and Deno. Needs glibc 2.39 or newer
+(Ubuntu 24.04, Fedora 40, Debian 13, or later).
+
+```bash
+chmod +x Minuett-0.1.0-x86_64.AppImage
+```
+
+```bash
+./Minuett-0.1.0-x86_64.AppImage
+```
+
+
 
 ## Updating and uninstalling
 
-Install the new Flatpak bundle or AppImage over the old one; your library,
-settings and downloads are kept.
+Install the new Flatpak bundle or AppImage over the old one; your library, settings and downloads are kept.
 
 YouTube changes often, and an old yt-dlp is the most common reason downloads
 start failing. Help ▸ Check for yt-dlp Update tells you if a newer one exists;
@@ -225,6 +162,18 @@ For the AppImage, delete the file. To remove settings and the library too,
 delete the folders in the table above (for the Flatpak,
 `~/.var/app/io.github.yudhanjaya.Minuett`). Your music in `~/Music` is never
 removed.
+
+## Your data
+
+| What | Native / AppImage | Flatpak |
+|---|---|---|
+| Downloads | `~/Music/Minuett/<playlist>/` (changeable in Preferences) | same |
+| Library database | `~/.local/share/minuett/library.db` | `~/.var/app/io.github.yudhanjaya.Minuett/data/minuett/` |
+| Settings, EQ, sign-ins, custom themes | `~/.config/minuett/` | `~/.var/app/io.github.yudhanjaya.Minuett/config/minuett/` |
+
+The library database only records where your files are, plus the playlists
+you imported. Deleting it never touches your music; Minuett rebuilds it on
+the next scan (imported playlists would need importing again).
 
 ## Known limitations
 
@@ -353,23 +302,17 @@ Token estimate for the session so far: the working context reached about
 **870,000 tokens**. Counting every model call (each re-reads the
 conversation, mostly from cache), the total processed is roughly
 **100–150 million input tokens** and about **0.5 million output tokens**.
-These are estimates from the session's usage readout, not a billing
-statement.
 
-## A note on downloading
-
-Downloading from YouTube is only permitted in the cases its terms allow. Use
-the downloader for content you have the right to keep.
 
 ## License
 
-Copyright © 2026 Yudhanjaya Wijeratne
 
 Minuett is free software: you can redistribute it and/or modify it under the
-terms of the GNU General Public License as published by the Free Software
-Foundation, either version 2 of the License, or (at your option) any later
-version. See [LICENSE](LICENSE).
+terms of the GNU General Public License 3  as published by the Free Software
+Foundation. [Read the license here](https://opensource.org/license/gpl-3.0).
 
-GPL-2.0-or-later is the most permissive GPL licence available here: the
-bundled tag library, mutagen, is GPL-2.0-or-later, and "or later" keeps
-Minuett compatible with the Apache-2.0 components under GPL-3.0.
+In a nutshell: 
+
+* **Copyleft and Viral Sharing:** You are free to use, modify, and distribute the software, but any modified versions or derivative works you share must also be released under the exact same GPL v3 license.
+* **Source Code Transparency:** If you distribute the software to others (whether modified or not), you must provide them with the complete, human-readable source code, not just the compiled executable.
+* **Absolute Lack of Liability (No Warranty):** The software is provided entirely "as is," meaning the original creators hold zero warranty, liability, or responsibility for any damages, bugs, or consequences resulting from whatever you choose to do with the software.

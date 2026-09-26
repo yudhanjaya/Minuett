@@ -24,6 +24,7 @@ from . import ytdlp_update
 from .dialogs.preferences import PreferencesDialog, load_preferences
 from .dialogs.tag_editor import TagEditorDialog
 from .download_manager import DownloadManager, OpResult
+from .views.browse_tree import BrowseTree
 from .views.downloads_view import DownloadsView
 from .views.equalizer_view import EqualizerView, debounce
 from .views.playlists_view import PlaylistsView
@@ -280,12 +281,31 @@ class MainWindow(QMainWindow):
             lambda m: QMessageBox.warning(self, "Edit Tag", f"Couldn't write the file, nothing changed.\n\n{m}"))
         self.library_model.tracks_edited.connect(self._on_tracks_edited)
 
-        w = QWidget()
-        layout = QVBoxLayout(w)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.search)
-        layout.addWidget(table)
-        return w
+        self.browse = BrowseTree(self.settings)
+        self.browse.filter_changed.connect(self.proxy.set_node_filter)
+        self.browse.set_tracks(self.library_model.tracks)
+        self.proxy.set_node_filter(self.browse.filter_for_current())
+        for sig in (self.library_model.rowsInserted, self.library_model.rowsRemoved,
+                    self.library_model.modelReset, self.library_model.dataChanged):
+            sig.connect(self._schedule_browse_rebuild)
+        self._browse_timer = QTimer(self, singleShot=True, interval=150)
+        self._browse_timer.timeout.connect(
+            lambda: self.browse.set_tracks(self.library_model.tracks))
+
+        right = QWidget()
+        rl = QVBoxLayout(right)
+        rl.setContentsMargins(0, 0, 0, 0)
+        rl.addWidget(self.search)
+        rl.addWidget(table)
+        split = QSplitter()
+        split.addWidget(self.browse)
+        split.addWidget(right)
+        split.setStretchFactor(1, 1)
+        split.setSizes([220, 700])
+        return split
+
+    def _schedule_browse_rebuild(self, *_) -> None:
+        self._browse_timer.start()
 
     def _build_menus(self) -> None:
         file_menu = self.menuBar().addMenu("&File")
@@ -369,7 +389,7 @@ class MainWindow(QMainWindow):
 
     def _scan_done(self, result) -> None:
         self._scan_thread = None
-        self.library_model.reload()
+        self.library_model.sync()
         msg = (f"Scan complete: {result.added_or_updated} added/updated, "
                f"{result.unchanged} unchanged, {result.removed} removed")
         if result.errors:
@@ -433,10 +453,10 @@ class MainWindow(QMainWindow):
 
     def _on_download_job(self, _i: int, job) -> None:
         if job.status.value == "done":
-            self.library_model.reload()
+            self.library_model.sync()
 
     def _on_download_finished(self, r: OpResult) -> None:
-        self.library_model.reload()
+        self.library_model.sync()
         if r.error:
             self.statusBar().showMessage(f"Playlist error: {r.error}", 10000)
         elif r.plan is not None and r.kind == "check":

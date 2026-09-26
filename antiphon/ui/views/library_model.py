@@ -56,6 +56,34 @@ class LibraryModel(QAbstractTableModel):
         self._rows = {t.id: i for i, t in enumerate(self.tracks)}
         self.endResetModel()
 
+    def sync(self) -> None:
+        """Re-read the library without a model reset, so the view keeps its
+        selection, scroll position and any open editor. Changed rows are
+        updated in place, vanished rows removed, new ones appended (the
+        proxy does the sorting)."""
+        fresh = {t.id: t for t in self.db.all_tracks()}
+        # Removals, bottom-up so row numbers stay valid.
+        gone = sorted((row for tid, row in self._rows.items() if tid not in fresh), reverse=True)
+        for row in gone:
+            self.beginRemoveRows(QModelIndex(), row, row)
+            del self.tracks[row]
+            self.endRemoveRows()
+        if gone:
+            self._rows = {t.id: i for i, t in enumerate(self.tracks)}
+        for row, old in enumerate(self.tracks):
+            new = fresh[old.id]
+            if new != old:
+                self.tracks[row] = new
+                self.dataChanged.emit(self.index(row, 0), self.index(row, len(COLUMNS) - 1))
+        added = [t for tid, t in fresh.items() if tid not in self._rows]
+        if added:
+            first = len(self.tracks)
+            self.beginInsertRows(QModelIndex(), first, first + len(added) - 1)
+            self.tracks.extend(added)
+            for i, t in enumerate(added, first):
+                self._rows[t.id] = i
+            self.endInsertRows()
+
     def refresh_tracks(self, track_ids: list[int]) -> None:
         """Re-read edited tracks from the DB without resetting the view."""
         for tid in track_ids:
@@ -134,17 +162,32 @@ class LibraryFilterProxy(QSortFilterProxyModel):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
         self._needle = ""
+        self._node = None  # browse-tree predicate, or None for everything
         self.setSortRole(LibraryModel.SortRole)
         self.setSortCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
 
+    def _refilter(self, change) -> None:
+        # Qt 6.10 replaced invalidateFilter() with begin/endFilterChange().
+        if hasattr(self, "beginFilterChange"):
+            self.beginFilterChange()
+            change()
+            self.endFilterChange()
+        else:
+            change()
+            self.invalidateFilter()
+
     def set_search(self, text: str) -> None:
-        self._needle = text.casefold().strip()
-        self.invalidateFilter()
+        self._refilter(lambda: setattr(self, "_needle", text.casefold().strip()))
+
+    def set_node_filter(self, predicate) -> None:
+        self._refilter(lambda: setattr(self, "_node", predicate))
 
     def filterAcceptsRow(self, row: int, parent: QModelIndex) -> bool:
+        track: Track = self.sourceModel().tracks[row]
+        if self._node is not None and not self._node(track):
+            return False
         if not self._needle:
             return True
-        track: Track = self.sourceModel().tracks[row]
         hay = " ".join(str(getattr(track, a) or "") for a in SEARCH_ATTRS).casefold()
         return all(word in hay for word in self._needle.split())
 

@@ -234,11 +234,18 @@ def check_youtube(acct: YouTubeAccount, base_opts: dict | None = None) -> YouTub
         return YouTubeStatus(False, False, "Not signed in.")
     capture = _Capture()
     params = {**(base_opts or {}), **opts, "quiet": False, "verbose": True,
-              "logger": capture, "skip_download": True, "noplaylist": True}
+              "logger": capture, "skip_download": True, "noplaylist": True,
+              "ignore_no_formats_error": True}
+    probe_error = ""
     try:
         with yt_dlp.YoutubeDL(params) as ydl:
-            ydl.extract_info(CHECK_VIDEO, download=False)
+            # Cookies are read when yt-dlp starts, so whether we're signed in
+            # doesn't depend on the network probe below succeeding.
             names = {c.name for c in ydl.cookiejar if "youtube.com" in c.domain}
+            try:
+                ydl.extract_info(CHECK_VIDEO, download=False)
+            except Exception as e:  # noqa: BLE001 - only Premium detection needs this
+                probe_error = str(e).removeprefix("ERROR: ")
     except Exception as e:  # noqa: BLE001 - show whatever went wrong
         text = str(e).removeprefix("ERROR: ")
         if "could not find" in text.lower() or "failed to decrypt" in text.lower() \
@@ -256,6 +263,9 @@ def check_youtube(acct: YouTubeAccount, base_opts: dict | None = None) -> YouTub
                "The cookies file isn't signed in (it may have expired). Export it again.")
     elif stale:
         msg = "Signed in, but YouTube has rotated these cookies. Export them again."
+    elif probe_error and not premium:
+        msg = ("Signed in, but Minuett couldn't ask YouTube about Premium "
+               f"({probe_error}). Install Node.js or Deno if you haven't, then Check again.")
     elif premium:
         msg = "Signed in with YouTube Premium: higher-bitrate audio is available."
     else:

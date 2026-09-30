@@ -281,3 +281,14 @@ def test_accounts_panel_and_dialogs_open(app, monkeypatch, tmp_path):
     assert sp.client_id.text() == "c" and sp.disconnect_btn.isVisibleTo(sp)
     sp._disconnect()
     assert not accounts.load().spotify.connected and accounts.load().spotify.client_id == "c"
+
+
+def test_older_chromium_profile_uses_single_cookies_file(tmp_path):
+    default = tmp_path / ".config/BraveSoftware/Brave-Browser/Default"
+    default.mkdir(parents=True)
+    (default / "Cookies").write_text("")           # no Network folder on this profile
+    brave = {b.key: b for b in installed_browsers(tmp_path, sandboxed=False)}["brave"]
+    assert brave.grant == str(default / "Cookies")
+    # Inside the sandbox only that file is granted; yt-dlp is pointed at its folder.
+    brave = {b.key: b for b in installed_browsers(tmp_path, sandboxed=True)}["brave"]
+    assert brave.visible and brave.profile == str(default)

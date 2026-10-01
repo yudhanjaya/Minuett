@@ -131,10 +131,22 @@ class BrowserInfo:
 
 
 def _cookie_dir(key: str, profile_dir: Path) -> Path:
-    """Chromium keeps cookies in <profile>/Default/Network; that folder is all
-    yt-dlp needs on Linux (the key comes from the keyring), so it's all we ask
-    the Flatpak to expose. Firefox keeps them in its profiles folder."""
-    return profile_dir / "Default" / "Network" if key in CHROMIUM_FAMILY else profile_dir
+    """What to expose to the Flatpak for a browser's cookies, and to point
+    yt-dlp at. Chromium keeps them in <profile>/Default/Network (the key comes
+    from the keyring, so that folder is all yt-dlp needs on Linux); older
+    profiles keep a single <profile>/Default/Cookies file instead, which is
+    then all we ask for. Firefox keeps them in its profiles folder."""
+    if key not in CHROMIUM_FAMILY:
+        return profile_dir
+    legacy = profile_dir / "Default" / "Cookies"
+    network = profile_dir / "Default" / "Network"
+    return legacy if legacy.is_file() and not network.is_dir() else network
+
+
+def _search_root(cookies: Path) -> Path:
+    """yt-dlp searches a directory for the cookie database; for a single-file
+    grant that's the folder holding it."""
+    return cookies.parent if cookies.is_file() else cookies
 
 
 def installed_browsers(home: Path | None = None, sandboxed: bool | None = None) -> list[BrowserInfo]:
@@ -152,8 +164,9 @@ def installed_browsers(home: Path | None = None, sandboxed: bool | None = None) 
         for d in dirs:
             base = home / d
             cookies = _cookie_dir(key, base)
-            if cookies.is_dir():            # granted narrowly (or a normal install)
-                hit = BrowserInfo(key, label, str(cookies if sandboxed else base), True, str(cookies))
+            if cookies.exists():            # granted narrowly (or a normal install)
+                hit = BrowserInfo(key, label, str(_search_root(cookies) if sandboxed else base),
+                                  True, str(cookies))
                 break
             if base.is_dir():
                 hit = BrowserInfo(key, label, str(base), True, str(cookies))

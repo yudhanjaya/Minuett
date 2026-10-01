@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 
-from PySide6.QtCore import QSize, Qt, QUrl, Signal
+from PySide6.QtCore import QEvent, QSize, Qt, QUrl, Signal
 from PySide6.QtGui import QAction, QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QAbstractItemView, QFileDialog, QFrame, QHBoxLayout, QHeaderView, QMenu, QMessageBox,
@@ -87,9 +87,15 @@ class PlaylistsView(QWidget):
         tune_item_view(self.tree, PLAYLIST_ROW_HEIGHT)
         header = self.tree.header()
         header.setStretchLastSection(False)
-        header.setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        for c in range(1, ACTIONS_COL):
-            header.setSectionResizeMode(c, QHeaderView.ResizeMode.ResizeToContents)
+        # Every column is draggable. Until the user resizes one, the name column
+        # takes whatever width the others leave free (see eventFilter).
+        for c in range(ACTIONS_COL):
+            header.setSectionResizeMode(c, QHeaderView.ResizeMode.Interactive)
+        header.setMinimumSectionSize(40)
+        self._fitting = False
+        self._user_sized = False
+        header.sectionResized.connect(self._on_section_resized)
+        self.tree.viewport().installEventFilter(self)
         # Qt sizes columns from text, not from embedded widgets, so give the
         # button column the width its buttons actually need.
         header.setSectionResizeMode(ACTIONS_COL, QHeaderView.ResizeMode.Fixed)
@@ -178,6 +184,32 @@ class PlaylistsView(QWidget):
         item = self.tree.currentItem()
         return item.data(0, Qt.ItemDataRole.UserRole) if item else None
 
+    def eventFilter(self, obj, event) -> bool:
+        if obj is self.tree.viewport() and event.type() == QEvent.Type.Resize:
+            self._fit_widths()
+        return super().eventFilter(obj, event)
+
+    def _on_section_resized(self, *_) -> None:
+        if not self._fitting:
+            self._user_sized = True
+
+    def _fit_widths(self) -> None:
+        """Size the data columns to their text, give the name column the rest."""
+        if self._user_sized:
+            return
+        header = self.tree.header()
+        self._fitting = True
+        try:
+            others = 0
+            for c in range(1, ACTIONS_COL):
+                w = max(self.tree.sizeHintForColumn(c), header.sectionSizeHint(c)) + 16
+                header.resizeSection(c, w)
+                others += w
+            free = self.tree.viewport().width() - others - header.sectionSize(ACTIONS_COL)
+            header.resizeSection(0, max(free, 240))
+        finally:
+            self._fitting = False
+
     def refresh(self) -> None:
         keep = self.current_playlist_id()
         self.tree.clear()
@@ -203,6 +235,7 @@ class PlaylistsView(QWidget):
                 f"{n} imported playlist{'s' if n != 1 else ''} · {done} of {total} songs downloaded")
         else:
             self.header.set_subtitle("Import a playlist to get started")
+        self._fit_widths()
         self._show_entries()
 
     def _actions_cell(self, pl: Playlist | None) -> QWidget:

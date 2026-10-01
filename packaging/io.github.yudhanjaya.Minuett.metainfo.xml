@@ -31,6 +31,11 @@
   </provides>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.2.0" date="2026-10-01">
+      <description>
+        <p>Resizable columns in the Playlists list, and more reliable YouTube sign-in detection.</p>
+      </description>
+    </release>
     <release version="0.1.0" date="2026-09-26">
       <description>
         <p>First release: playback, library, tag editing, playlist sync, equalizer and themes.</p>

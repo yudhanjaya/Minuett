@@ -200,6 +200,9 @@ class YouTubeSignInDialog(QDialog):
             if others:
                 extra = ("\nIf your browser is a Flatpak or Snap, use its folder instead: "
                          + ", ".join(o.replace(str(Path.home()), "~", 1) for o in others))
+            if b.key in accounts.CHROMIUM_FAMILY:
+                extra += ("\nIf there is no Default/Network folder (older profiles), grant "
+                          "Default/Cookies instead.")
             self.flatpak_hint.setText(
                 "Minuett runs as a Flatpak and can't read your browser's sign-in until you "
                 "allow it. This grants read-only access to the browser's cookie folder only "

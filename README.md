@@ -8,7 +8,7 @@ Minuett is a return to those times, in spirit. It is a library-first music playe
 
 And because this is not 2004, it allows you to import playlists pulled in from YouTube, YouTube Music, Spotify and Pandora. When you import a playlist, Minuett will download the tracks, covert them to .opus (which is a free and open file format) and populate your library automatically. You can also import folders as playlists. 
 
-Minuett is built for my own needs. I wanted a handy way of playing music as I write in a way that didn't always depend on an Internet connection. I only described the design and the functions; the actual work was done by Claude 5.5 Opus. 
+Minuett is built for my own needs. I wanted a handy way of playing music as I write in a way that didn't always depend on an Internet connection. I only described the design and the functions; the actual work was done by Claude 5.5 Sonnet. 
 
 We got a little bit carried away adding a few features from friends ( Spotify, for instance, neither of which I use), but I've kept it as clean and simple as possible. 
 

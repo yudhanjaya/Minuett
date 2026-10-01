@@ -126,7 +126,7 @@ flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/fl
 ```
 
 ```bash
-flatpak install --user Minuett-0.1.0-x86_64.flatpak
+flatpak install --user Minuett-0.1.1-x86_64.flatpak
 ```
 
 ```bash
@@ -146,11 +146,11 @@ Bundles Python, GStreamer, ffmpeg and Deno. Needs glibc 2.39 or newer
 (Ubuntu 24.04, Fedora 40, Debian 13, or later).
 
 ```bash
-chmod +x Minuett-0.1.0-x86_64.AppImage
+chmod +x Minuett-0.1.1-x86_64.AppImage
 ```
 
 ```bash
-./Minuett-0.1.0-x86_64.AppImage
+./Minuett-0.1.1-x86_64.AppImage
 ```
 
 

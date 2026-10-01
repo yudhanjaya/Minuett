@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "minuett"
-version = "0.1.0"
+version = "0.1.1"
 description = "A RealPlayer-style Linux media player with a YouTube playlist downloader and parametric EQ"
 readme = "README.md"
 license = "GPL-2.0-or-later"

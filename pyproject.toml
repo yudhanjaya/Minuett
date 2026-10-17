@@ -7,7 +7,7 @@ name = "minuett"
 version = "0.2.0"
 description = "A RealPlayer-style Linux media player with a YouTube playlist downloader and parametric EQ"
 readme = "README.md"
-license = "GPL-2.0-or-later"
+license = "GPL-3.0-only"
 license-files = ["LICENSE"]
 requires-python = ">=3.12"
 dependencies = [

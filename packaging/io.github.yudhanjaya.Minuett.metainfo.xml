@@ -1,10 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2026 Yudhanjaya Wijeratne -->
 <component type="desktop-application">
   <id>io.github.yudhanjaya.Minuett</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>GPL-2.0-or-later</project_license>
+  <project_license>GPL-3.0-only</project_license>
   <name>Minuett</name>
-  <summary>Music player with playlist sync and a parametric EQ</summary>
+  <summary>Library-first music player with playlist sync and a parametric equalizer</summary>
+
+  <developer id="io.github.yudhanjaya">
+    <name>Yudhanjaya Wijeratne</name>
+  </developer>
+
   <description>
     <p>
       Minuett is a music player in the spirit of RealPlayer 10: a glossy
@@ -14,29 +20,71 @@
     <ul>
       <li>Import YouTube playlists and keep each one up to date individually;
           only newly added songs are downloaded</li>
-      <li>Audio kept in its original format (Opus or M4A), with MP3 as an option</li>
+      <li>Downloads are saved as Opus, or MP3 V0 if you prefer</li>
+      <li>Gapless playback for Opus, FLAC, AAC/M4A, MP3, Ogg Vorbis and WAV</li>
       <li>Tag editor with batch editing and cover art</li>
       <li>10-band parametric equalizer with a live response curve and presets</li>
-      <li>Gapless playback</li>
       <li>Themes written in CSS, including looks based on popular editor themes</li>
+      <li>No telemetry and no accounts of its own; it goes online only when asked</li>
     </ul>
     <p>
       Downloading from YouTube is only permitted in the cases its terms allow.
       Use the downloader for content you have the right to keep.
     </p>
   </description>
+
   <launchable type="desktop-id">io.github.yudhanjaya.Minuett.desktop</launchable>
+
+  <url type="homepage">https://github.com/yudhanjaya/Minuett</url>
+  <url type="bugtracker">https://github.com/yudhanjaya/Minuett/issues</url>
+  <url type="contact">https://github.com/yudhanjaya</url>
+  <url type="vcs-browser">https://github.com/yudhanjaya/Minuett</url>
+
+  <content_rating type="oars-1.1"/>
+
+  <requires>
+    <control>keyboard</control>
+    <control>pointing</control>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
   <provides>
     <binary>minuett</binary>
   </provides>
-  <content_rating type="oars-1.1"/>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/yudhanjaya/Minuett/v0.2/screenshots/library.png</image>
+      <caption>The library, browsing a playlist</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/yudhanjaya/Minuett/v0.2/screenshots/eq.png</image>
+      <caption>The 10-band parametric equalizer with its live response curve</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/yudhanjaya/Minuett/v0.2/screenshots/downloads.png</image>
+      <caption>Downloading an imported playlist, song by song</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/yudhanjaya/Minuett/v0.2/screenshots/library-white.png</image>
+      <caption>The library in a light theme</caption>
+    </screenshot>
+  </screenshots>
+
+  <branding>
+    <color type="primary" scheme_preference="light">#5aa9ff</color>
+    <color type="primary" scheme_preference="dark">#2276ce</color>
+  </branding>
+
   <releases>
     <release version="0.2.0" date="2026-10-01">
+      <url type="details">https://github.com/yudhanjaya/Minuett/releases/tag/v0.2</url>
       <description>
         <p>Resizable columns in the Playlists list, and more reliable YouTube sign-in detection.</p>
       </description>
     </release>
     <release version="0.1.0" date="2026-09-26">
+      <url type="details">https://github.com/yudhanjaya/Minuett/releases/tag/v0.1</url>
       <description>
         <p>First release: playback, library, tag editing, playlist sync, equalizer and themes.</p>
       </description>

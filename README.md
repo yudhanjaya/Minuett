@@ -114,8 +114,23 @@ you. Sign out from the same dialog to delete them.
 
 ## Installing
 
-Download the Flatpak bundle or the AppImage from the
-[Releases](../../releases) page. Now presumably you know how to use Flatpak or AppImage - I personally use bauh and Gear Lever - but, just in case:
+One command, on Linux x86_64:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yudhanjaya/Minuett/main/install.sh | bash
+```
+
+It uses the Flatpak bundle if you have flatpak, otherwise the AppImage.
+`--flatpak` or `--appimage` picks one, and `--run` starts Minuett after
+installing:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/yudhanjaya/Minuett/main/install.sh | bash -s -- --appimage --run
+```
+
+Or download either file from the [Releases](../../releases) page and install it
+yourself. Now presumably you know how to use Flatpak or AppImage - I personally
+use bauh and Gear Lever - but, just in case:
 
 ### Flatpak
 

@@ -272,8 +272,7 @@ Building the packages:
 The Flatpak build needs `org.flatpak.Builder` and `org.gnome.Sdk//50` from
 Flathub. Python wheels are pinned in `packaging/flatpak/python-deps.json`;
 regenerate with `python3 tools/gen_flatpak_deps.py` after changing
-dependencies. Build the AppImage on the oldest distro you want to support; the glibc
-floor that results is the build machine's.
+dependencies. 
 
 ## Project layout
 
@@ -291,7 +290,7 @@ docs/            # PLAN.md (design notes), THEMES.md
 
 ## Credits
 
-Minuett stands on these projects:
+Minuett stands on the shoulders these projects:
 
 | Project | Used for | License |
 |---|---|---|
